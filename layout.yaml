@@ -1,0 +1,81 @@
+# === Video Layout Configuration ===
+
+# --- General Scene Settings ---
+resolution: [1920, 1080]
+background_image: "/Users/joeylee/Workspace/AITheater/tools/background/avalon.png" # Path to your background image
+font_path: "assets/fonts/web fonts/liberationsans_bold_macroman/LiberationSans-Bold-webfont.ttf" # Path to the locally stored font
+output_preview_path: "outputs/layout_preview.png"
+avatar_dir: "tools/icon" # Directory containing player avatars
+
+# --- Player Avatar Layout ---
+# Defines the (x, y) center position for each of the 7 players on the screen.
+player_positions:
+  - player_id: 0
+    position: [590, 740]
+  - player_id: 1
+    position: [370, 610]
+  - player_id: 2
+    position: [700, 490]
+  - player_id: 3
+    position: [960, 425] # Center Top
+  - player_id: 4
+    position: [1220, 490]
+  - player_id: 5
+    position: [1330, 740]
+  - player_id: 6
+    position: [960, 850] # Bottom Center
+
+# --- Player Avatar File Mapping ---
+# Maps a player_id to a specific avatar image file in the avatar_dir.
+player_avatars:
+  - player_id: 0
+    avatar_file: "gemini.webp"
+  - player_id: 1
+    avatar_file: "gemini.webp"
+  - player_id: 2
+    avatar_file: "gemini.webp"
+  - player_id: 3
+    avatar_file: "gemini.webp"
+  - player_id: 4
+    avatar_file: "gemini.webp"
+  - player_id: 5
+    avatar_file: "gemini.webp"
+  - player_id: 6
+    avatar_file: "gemini.webp"
+
+# --- Visual Element Styles ---
+avatar:
+  size: [75, 75] # Greatly reduced size
+  border_color_default: [255, 255, 255] # White
+  border_color_speaking: [255, 215, 0] # Gold
+  border_width: 6
+
+model_tag: # The text showing the model name (e.g., "gpt-4o")
+  font_size: 28
+  color: "#E0E0E0" # Light grey
+  offset_from_avatar: [0, 95] # (x, y) offset from the avatar's center don't modify this
+
+info_panel: # The multi-purpose information panel at the bottom
+  position: ["center", 30] # Horizontally centered, 980px from the top
+  size: [700, 300] # don't modify this Width, Height
+  background_color: [0, 0, 0] # Black
+  opacity: 0
+  
+  system_message_style:
+    font_size: 40
+    text_color: "#000000" # Black color for system messages
+    text_alignment: "center"
+
+  player_summary_style:
+    font_size: 36
+    text_color: "#000000" # Black
+    text_alignment: "center"
+
+subtitle_area:
+  position: ["center", 950] # Horizontally centered, 950px from the top
+  size: [1600, 100] # Width, Height
+  font_size: 48
+  text_color: "white"
+  text_alignment: "center"
+  background_color: [0, 0, 0]
+  opacity: 0
