@@ -1,634 +1,571 @@
+"""
+M1-Optimized Video Generator for AITheater
+Optimized for Apple Silicon with hardware acceleration and memory efficiency
+"""
+
 import os
 import yaml
-from moviepy import *
-from PIL import Image, ImageDraw, ImageFont
-import numpy as np
 import json
 import logging
+import gc
+import multiprocessing
+import platform
+import subprocess
 from typing import Dict, List, Any, Optional, Tuple
-import threading
-from concurrent.futures import ThreadPoolExecutor
-import traceback
+from dataclasses import dataclass
+from functools import lru_cache
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+from moviepy.editor import *
 
-class VideoGenerator:
-    def __init__(self, config_path="layout.yaml"):
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+@dataclass
+class M1OptimizationConfig:
+    """Configuration for M1-specific optimizations"""
+    use_videotoolbox: bool = True
+    use_metal: bool = True
+    max_memory_mb: int = 8192  # 8GB limit for 16GB system
+    optimal_batch_size: int = 3
+    encoding_preset: str = "ultrafast"
+    target_resolution: Tuple[int, int] = (1920, 1080)  # 保持原始分辨率
+    bitrate: str = "3000k"  # 提高码率以保证质量
+    fps: int = 24
+    threads: int = 8  # M1 has 8 cores (4 performance + 4 efficiency)
+
+
+class MemoryManager:
+    """Memory management for 16GB M1 Mac"""
+    def __init__(self, max_memory_mb: int = 8192):
+        self.max_memory_mb = max_memory_mb
         self.logger = logging.getLogger(__name__)
         
-        self.logger.info("Initializing Enhanced Video Generator...")
-        
+    def check_memory(self) -> float:
+        """Check current memory usage"""
         try:
-            with open(config_path, 'r') as f:
-                self.config = yaml.safe_load(f)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Config file not found: {config_path}")
-        except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML config: {e}")
-        
-        self.layout = self.config
-        self.resolution = tuple(self.layout.get("resolution", [1920, 1080]))
-        self.font_path = self.layout.get("font_path")
-        self.avatar_dir = self.layout.get("avatar_dir", "assets/player_avatars")
-        
-        # Validate required paths
-        if not self.font_path or not os.path.exists(self.font_path):
-            raise FileNotFoundError(f"Font file not found: {self.font_path}")
-        if not os.path.exists(self.avatar_dir):
-            raise FileNotFoundError(f"Avatar directory not found: {self.avatar_dir}")
-        
-        player_avatars_config = self.layout.get("player_avatars", [])
-        self.avatar_map = {p["player_id"]: p["avatar_file"] for p in player_avatars_config}
-
-        # Thread-safe caches
-        self.asset_cache = {}
-        self.scene_cache = {}
-        self.font_cache = {}
-        self._cache_lock = threading.Lock()
-        
-        self._preload_assets()
-        self.logger.info("Enhanced Video Generator initialized successfully.")
-
-    def _get_font(self, size: int) -> ImageFont.FreeTypeFont:
-        """Thread-safe font loading with error handling."""
-        with self._cache_lock:
-            if size not in self.font_cache:
-                try:
-                    self.font_cache[size] = ImageFont.truetype(self.font_path, size)
-                except OSError as e:
-                    self.logger.error(f"Failed to load font: {e}")
-                    # Use default font as fallback
-                    self.font_cache[size] = ImageFont.load_default()
-            return self.font_cache[size]
-
-    def _preload_assets(self):
-        """Preload and cache all static assets with error handling."""
-        try:
-            # Load background
-            bg_path = self.layout.get("background_image")
-            if not bg_path or not os.path.exists(bg_path):
-                raise FileNotFoundError(f"Background image not found: {bg_path}")
-            
-            self.asset_cache['background'] = ImageClip(bg_path).resized(
-                new_size=self.resolution
-            )
-            
-            self.asset_cache['players'] = {}
-            avatar_cfg = self.layout.get("avatar", {})
-            avatar_size = tuple(avatar_cfg.get("size", [75, 75]))
-            border_width = avatar_cfg.get("border_width", 6)
-            
-            for player_info in self.layout.get("player_positions", []):
-                p_id = player_info['player_id']
-                pos = tuple(player_info.get("position", [0, 0]))
-                self.asset_cache['players'][p_id] = {'pos': pos}
-
-                # Load avatar with error handling
-                avatar_filename = self.avatar_map.get(p_id, "default.png")
-                avatar_path = os.path.join(self.avatar_dir, avatar_filename)
-                
-                try:
-                    if os.path.exists(avatar_path):
-                        avatar_img = Image.open(avatar_path).convert("RGBA").resize(avatar_size)
-                        self.asset_cache['players'][p_id]['avatar_clip'] = (
-                            ImageClip(np.array(avatar_img), duration=1)
-                            .resized(new_size=avatar_size)
-                            .with_position(pos)
-                        )
-                    else:
-                        self.logger.warning(f"Avatar not found for player {p_id}: {avatar_path}")
-                        # Create placeholder avatar
-                        placeholder = Image.new('RGBA', avatar_size, (128, 128, 128, 255))
-                        self.asset_cache['players'][p_id]['avatar_clip'] = (
-                            ImageClip(np.array(placeholder), duration=1)
-                            .resized(new_size=avatar_size)
-                            .with_position(pos)
-                        )
-                except Exception as e:
-                    self.logger.error(f"Failed to load avatar for player {p_id}: {e}")
-                    continue
-
-                # Create speaking border
-                border_size = (avatar_size[0] + 2 * border_width, avatar_size[1] + 2 * border_width)
-                border_pos = (pos[0] - border_width, pos[1] - border_width)
-                border_color = avatar_cfg.get("border_color_speaking", [255, 215, 0])
-                
-                self.asset_cache['players'][p_id]['border_speaking'] = (
-                    ColorClip(size=border_size, color=border_color, duration=1)
-                    .with_position(border_pos)
-                )
-                
-        except Exception as e:
-            self.logger.error(f"Asset preloading failed: {e}")
-            raise
-
-    def _create_base_scene(self, duration: float) -> CompositeVideoClip:
-        """Creates the static background scene with avatars for specified duration."""
-        clips = [self.asset_cache['background'].with_duration(duration)]
-        
-        for p_id, assets in self.asset_cache['players'].items():
-            if 'avatar_clip' in assets:
-                clips.append(assets['avatar_clip'].with_duration(duration))
-                
-        return CompositeVideoClip(clips, size=self.resolution)
+            import psutil
+            process = psutil.Process()
+            memory_mb = process.memory_info().rss / 1024 / 1024
+            return memory_mb
+        except ImportError:
+            return 0
     
-    def _create_subtitle_clips(self, subtitles: List[Dict], event_start_ms: int, event_duration_ms: int) -> List[TextClip]:
-        """
-        Creates a list of TextClips for all subtitle chunks within an event's timeframe.
-        """
+    def optimize_if_needed(self) -> bool:
+        """Trigger optimization if memory usage is high"""
+        current_mb = self.check_memory()
+        if current_mb > self.max_memory_mb * 0.8:  # 80% threshold
+            self.logger.warning(f"High memory usage: {current_mb:.1f}MB, triggering cleanup")
+            gc.collect()
+            return True
+        return False
+
+
+class AssetManager:
+    """Efficient asset loading and caching with lazy loading"""
+    def __init__(self, config: Dict, resolution: Tuple[int, int]):
+        self.config = config
+        self.resolution = resolution
+        self.logger = logging.getLogger(__name__)
+        self._cache = {}
+        self._font_cache = {}
+        
+    @lru_cache(maxsize=32)
+    def get_font(self, size: int) -> ImageFont.FreeTypeFont:
+        """Cached font loading"""
+        font_path = self.config.get("font_path")
+        try:
+            return ImageFont.truetype(font_path, size)
+        except OSError as e:
+            self.logger.error(f"Failed to load font: {e}")
+            return ImageFont.load_default()
+    
+    def load_background(self) -> ImageClip:
+        """Lazy load background image"""
+        if 'background' not in self._cache:
+            bg_path = self.config.get("background_image")
+            if bg_path and os.path.exists(bg_path):
+                # Load at target resolution to save memory
+                self._cache['background'] = ImageClip(bg_path).resized(
+                    new_size=self.resolution
+                )
+            else:
+                # Create solid color background as fallback
+                self._cache['background'] = ColorClip(
+                    size=self.resolution, 
+                    color=(30, 30, 30), 
+                    duration=1
+                )
+        return self._cache['background']
+    
+    def load_avatar(self, player_id: int) -> Optional[ImageClip]:
+        """Lazy load player avatar"""
+        cache_key = f"avatar_{player_id}"
+        if cache_key not in self._cache:
+            avatar_cfg = self.config.get("avatar", {})
+            avatar_size = tuple(avatar_cfg.get("size", [75, 75]))
+            avatar_dir = self.config.get("avatar_dir", "assets/player_avatars")
+            
+            # Get avatar mapping
+            player_avatars = self.config.get("player_avatars", [])
+            avatar_map = {p["player_id"]: p["avatar_file"] for p in player_avatars}
+            avatar_filename = avatar_map.get(player_id, "default.png")
+            avatar_path = os.path.join(avatar_dir, avatar_filename)
+            
+            try:
+                if os.path.exists(avatar_path):
+                    # Load and resize in one operation to save memory
+                    avatar_img = Image.open(avatar_path).convert("RGBA").resize(
+                        avatar_size, Image.Resampling.LANCZOS
+                    )
+                    self._cache[cache_key] = ImageClip(
+                        np.array(avatar_img), 
+                        duration=1
+                    )
+                else:
+                    # Create placeholder
+                    placeholder = Image.new('RGBA', avatar_size, (128, 128, 128, 255))
+                    self._cache[cache_key] = ImageClip(
+                        np.array(placeholder), 
+                        duration=1
+                    )
+            except Exception as e:
+                self.logger.error(f"Failed to load avatar for player {player_id}: {e}")
+                return None
+                
+        return self._cache[cache_key]
+    
+    def clear_cache(self):
+        """Clear asset cache to free memory"""
+        self._cache.clear()
+        gc.collect()
+
+
+class VideoEncoderM1:
+    """M1-optimized video encoder with hardware acceleration"""
+    def __init__(self, m1_config: M1OptimizationConfig):
+        self.config = m1_config
+        self.logger = logging.getLogger(__name__)
+        self._detect_capabilities()
+        
+    def _detect_capabilities(self):
+        """Detect M1 hardware acceleration capabilities"""
+        self.has_videotoolbox = False
+        self.has_metal = platform.system() == 'Darwin' and platform.processor() == 'arm'
+        
+        if platform.system() == 'Darwin':
+            try:
+                result = subprocess.run(
+                    ['ffmpeg', '-hide_banner', '-encoders'], 
+                    capture_output=True, text=True, timeout=5
+                )
+                if 'h264_videotoolbox' in result.stdout:
+                    self.has_videotoolbox = True
+                    self.logger.info("VideoToolbox hardware acceleration available")
+            except:
+                pass
+                
+    def get_encoding_params(self) -> Dict[str, Any]:
+        """Get optimized encoding parameters for M1"""
+        params = {
+            'fps': self.config.fps,
+            'threads': self.config.threads,
+            'preset': self.config.encoding_preset,
+            'bitrate': self.config.bitrate,
+            'audio_codec': 'aac',
+            'temp_audiofile': 'temp-audio.m4a',
+            'remove_temp': True,
+            'write_logfile': False,
+            'verbose': False
+        }
+        
+        if self.has_videotoolbox and self.config.use_videotoolbox:
+            params['codec'] = 'h264_videotoolbox'
+            # VideoToolbox specific optimizations
+            params['ffmpeg_params'] = [
+                '-profile:v', 'baseline',  # Simpler profile for faster encoding
+                '-level', '4.0',
+                '-allow_sw', '1',  # Allow software fallback
+                '-realtime', '1'   # Optimize for realtime encoding
+            ]
+        else:
+            params['codec'] = 'libx264'
+            params['ffmpeg_params'] = [
+                '-profile:v', 'baseline',
+                '-level', '4.0',
+                '-tune', 'zerolatency'  # Optimize for low latency
+            ]
+            
+        return params
+
+
+class SceneCompositor:
+    """Efficient scene composition with minimal memory usage"""
+    def __init__(self, asset_manager: AssetManager, layout_config: Dict):
+        self.assets = asset_manager
+        self.layout = layout_config
+        self.resolution = tuple(layout_config.get("resolution", [1280, 720]))
+        self.logger = logging.getLogger(__name__)
+        
+    def create_event_clip(self, event: Dict, audio_path: str, duration: float,
+                         subtitles: List[Dict], start_time_ms: int) -> Optional[VideoClip]:
+        """Create optimized event clip with minimal layers"""
+        try:
+            # Load audio
+            if not os.path.exists(audio_path):
+                self.logger.warning(f"Audio file not found: {audio_path}")
+                return None
+                
+            audio_clip = AudioFileClip(audio_path)
+            
+            # Start with background
+            layers = [self.assets.load_background().with_duration(duration)]
+            
+            # Add avatars efficiently
+            player_positions = self.layout.get("player_positions", [])
+            speaking_player = self._get_speaking_player(event)
+            
+            for player_info in player_positions:
+                player_id = player_info['player_id']
+                position = tuple(player_info.get("position", [0, 0]))
+                
+                avatar = self.assets.load_avatar(player_id)
+                if avatar:
+                    avatar_clip = avatar.with_duration(duration).with_position(position)
+                    layers.append(avatar_clip)
+                    
+                    # Add speaking indicator if needed
+                    if player_id == speaking_player:
+                        layers.append(self._create_speaking_indicator(
+                            position, duration
+                        ))
+            
+            # Add subtitles
+            subtitle_clips = self._create_subtitle_clips(
+                subtitles, start_time_ms, int(duration * 1000)
+            )
+            layers.extend(subtitle_clips)
+            
+            # Composite with minimal operations
+            video_clip = CompositeVideoClip(layers, size=self.resolution)
+            video_clip = video_clip.with_duration(duration).with_audio(audio_clip)
+            
+            return video_clip
+            
+        except Exception as e:
+            self.logger.error(f"Failed to create event clip: {e}")
+            return None
+    
+    def _get_speaking_player(self, event: Dict) -> Optional[int]:
+        """Extract speaking player ID"""
+        try:
+            player_id = event.get("player_id")
+            if player_id is not None:
+                if isinstance(player_id, str) and player_id.isdigit():
+                    return int(player_id)
+                elif isinstance(player_id, int):
+                    return player_id
+        except:
+            pass
+        return None
+    
+    def _create_speaking_indicator(self, position: Tuple[int, int], 
+                                  duration: float) -> ColorClip:
+        """Create speaking border"""
+        avatar_cfg = self.layout.get("avatar", {})
+        avatar_size = tuple(avatar_cfg.get("size", [75, 75]))
+        border_width = avatar_cfg.get("border_width", 6)
+        border_color = avatar_cfg.get("border_color_speaking", [255, 215, 0])
+        
+        border_size = (
+            avatar_size[0] + 2 * border_width,
+            avatar_size[1] + 2 * border_width
+        )
+        border_pos = (
+            position[0] - border_width,
+            position[1] - border_width
+        )
+        
+        return ColorClip(
+            size=border_size,
+            color=border_color,
+            duration=duration
+        ).with_position(border_pos)
+    
+    def _create_subtitle_clips(self, subtitles: List[Dict], 
+                              event_start_ms: int, 
+                              event_duration_ms: int) -> List[TextClip]:
+        """Create subtitle clips efficiently"""
         clips = []
         event_end_ms = event_start_ms + event_duration_ms
-
-        # Find all subtitles that overlap with the current event
+        
         relevant_subtitles = [
             s for s in subtitles 
             if s['start_ms'] < event_end_ms and s['end_ms'] > event_start_ms
         ]
-
+        
         if not relevant_subtitles:
             return []
-
+        
         sub_cfg = self.layout.get("subtitle_area", {})
         font_size = sub_cfg.get("font_size", 36)
         text_color = sub_cfg.get("text_color", "white")
-        box_size = sub_cfg.get("size", [1800, 100])
         position = sub_cfg.get("position", ["center", 950])
-
+        
         for sub in relevant_subtitles:
             try:
                 text = sub.get('text', '').strip()
                 if not text:
                     continue
-
-                # Calculate clip's start and duration relative to the event clip
-                clip_start_sec = (sub['start_ms'] - event_start_ms) / 1000.0
+                
+                clip_start_sec = max(0, (sub['start_ms'] - event_start_ms) / 1000.0)
                 clip_duration_sec = (sub['end_ms'] - sub['start_ms']) / 1000.0
-
-                # Ensure start time is not negative
-                if clip_start_sec < 0:
-                    clip_duration_sec += clip_start_sec
-                    clip_start_sec = 0
                 
                 if clip_duration_sec <= 0:
                     continue
-
-                self.logger.info(f"Creating subtitle clip: '{text}' at {clip_start_sec:.2f}s for {clip_duration_sec:.2f}s")
-
+                
                 subtitle_clip = TextClip(
                     text=text,
                     font_size=font_size,
                     color=text_color,
-                    size=box_size,
                     method='caption'
                 ).with_position(position).with_start(clip_start_sec).with_duration(clip_duration_sec)
                 
                 clips.append(subtitle_clip)
-
+                
             except Exception as e:
-                self.logger.error(f"Failed to create subtitle clip for text '{sub.get('text')}': {e}")
-                continue
-        
+                self.logger.error(f"Failed to create subtitle: {e}")
+                
         return clips
+
+
+class M1VideoGenerator:
+    """Main M1-optimized video generator"""
     
-    def _create_info_panel_clip(self, event: Dict[str, Any], duration: float) -> Optional[TextClip]:
-        """Creates the info panel clip with summary text for the event."""
-        summary_text = event.get("summary")
-        if not summary_text:
-            return None
-
-        try:
-            panel_cfg = self.layout.get("info_panel", {})
-            style_cfg = panel_cfg.get("system_message_style", {})
-            
-            position = panel_cfg.get("position", ["center", 550])
-            size = panel_cfg.get("size", [700, 300])
-            font_size = style_cfg.get("font_size", 32)
-            text_color = style_cfg.get("text_color", "#FFFFFF")
-
-            self.logger.info(f"Creating info panel: '{summary_text}'")
-
-            info_clip = TextClip(
-                text=summary_text,
-                font_size=font_size,
-                color=text_color,
-                size=size,
-                method='caption'
-            ).with_position(position).with_duration(duration)
-
-            return info_clip
-
-        except Exception as e:
-            self.logger.error(f"Failed to create info panel for summary '{summary_text}': {e}")
-            return None
-
-    def _create_quest_dashboard_clip(self, quest_history: List[Dict], duration: float) -> Optional[TextClip]:
-        """Creates the quest dashboard clip based on the current quest history."""
-        if not quest_history:
-            return None
-
-        try:
-            dash_cfg = self.layout.get("quest_dashboard", {})
-            position = dash_cfg.get("position", ["center", 10])
-            font_size = dash_cfg.get("font_size", 36)
-            text_color = dash_cfg.get("color", "#FFFFFF")
-            line_spacing = dash_cfg.get("line_spacing", 5)
-
-            dashboard_text = "Quest History:\n"
-            for quest in quest_history:
-                team_str = ", ".join(quest['team'])
-                status = quest.get('result', 'PROPOSED')
-                dashboard_text += f"Q{quest['quest_number']} (Team: {team_str}): {status}\n"
-
-            # Create a background for the dashboard
-            bg_color = dash_cfg.get("background_color", [0, 0, 0])
-            opacity = dash_cfg.get("opacity", 0.5)
-
-            text_clip = TextClip(
-                text=dashboard_text,
-                font_size=font_size,
-                color=text_color,
-                align='West',
-                size=(self.resolution[0] * 0.8, None), # 80% of width
-                method='caption'
-            )
-            
-            bg_size = (text_clip.size[0] + 40, text_clip.size[1] + 20)
-            background = ColorClip(size=bg_size, color=bg_color).with_opacity(opacity)
-            
-            dashboard_clip = CompositeVideoClip([background, text_clip.with_position("center")], size=bg_size)
-            dashboard_clip = dashboard_clip.with_position(position).with_duration(duration)
-
-            return dashboard_clip
-
-        except Exception as e:
-            self.logger.error(f"Failed to create quest dashboard: {e}")
-            return None
-
-    def _create_model_tag(self, player_id: int, duration: float) -> Optional[TextClip]:
-        """Create model name tag under player avatar."""
-        try:
-            model_cfg = self.layout.get("model_tag", {})
-            player_pos = self.asset_cache['players'][player_id]['pos']
-            
-            # Calculate text position
-            offset = model_cfg.get("offset_from_avatar", [0, 95])
-            text_pos = (player_pos[0] + offset[0], player_pos[1] + offset[1])
-            
-            # Create text (simple Player ID for now)
-            text = f"Player {player_id}"
-            
-            # Ensure text position is within video bounds
-            safe_x = max(10, min(text_pos[0] - 50, self.resolution[0] - 110))  # Center text under avatar
-            safe_y = min(text_pos[1], self.resolution[1] - 60)  # Keep above bottom edge
-            
-            text_clip = TextClip(
-                text=text,
-                font_size=model_cfg.get("font_size", 24),  # Smaller for better fit
-                color=model_cfg.get("color", "#E0E0E0"),
-                size=(100, 40)  # Fixed size to prevent clipping
-            ).with_position((safe_x, safe_y)).with_duration(duration)
-            
-            return text_clip
-            
-        except Exception as e:
-            self.logger.warning(f"Failed to create model tag for player {player_id}: {e}")
-            return None
-    
-    def _create_leader_tag(self, player_id: int, duration: float) -> Optional[TextClip]:
-        """Create special red leader tag."""
-        try:
-            leader_cfg = self.layout.get("leader_tag", {})
-            player_pos = self.asset_cache['players'][player_id]['pos']
-            
-            # Calculate text position
-            offset = leader_cfg.get("offset_from_avatar", [-50, 95])
-            text_pos = (player_pos[0] + offset[0], player_pos[1] + offset[1])
-            
-            # Create leader text
-            text_format = leader_cfg.get("format", "Leader - Player {player_id}")
-            text = text_format.format(player_id=player_id)
-            
-            text_clip = TextClip(
-                text=text,
-                font_size=leader_cfg.get("font_size", 22),  # Smaller for longer text
-                color=leader_cfg.get("color", "#FF4136"),  # Red
-                size=(300, 50)  # Wider for "Leader - Player X" text
-            ).with_position((max(10, min(text_pos[0], self.resolution[0] - 310)), 
-                           min(text_pos[1], self.resolution[1] - 60))).with_duration(duration)  # Ensure within bounds
-            
-            return text_clip
-            
-        except Exception as e:
-            self.logger.warning(f"Failed to create leader tag for player {player_id}: {e}")
-            return None
-    
-    def _determine_leader(self, event: Dict[str, Any]) -> Optional[int]:
-        """Determine if there's a leader from the event context."""
-        # Look for leader information in the event text or context
-        text = event.get("text", "").lower()
+    def __init__(self, config_path: str = "data/layout.yaml", 
+                 target_resolution: Optional[Tuple[int, int]] = None):
+        """Initialize M1-optimized video generator
         
-        # Simple pattern matching for leader detection
-        if "leader" in text:
-            # Try to extract player number mentioned with leader
-            import re
-            leader_match = re.search(r"player (\d+).*leader", text)
-            if leader_match:
-                return int(leader_match.group(1))
+        Args:
+            config_path: Path to layout configuration
+            target_resolution: Override resolution for speed (e.g., (1280, 720))
+        """
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+        self.logger = logging.getLogger(__name__)
         
-        return None
-
-    def render_video(self, script_path: str, metadata_path: str, subtitle_path: str, 
-                    output_path: str, max_events: Optional[int] = None) -> bool:
-        """Render video with enhanced error handling and precise subtitle timing."""
-        self.logger.info("Starting Enhanced Video Generation")
+        # Load configuration
+        with open(config_path, 'r') as f:
+            self.layout_config = yaml.safe_load(f)
+        
+        # M1-specific configuration
+        self.m1_config = M1OptimizationConfig()
+        if target_resolution:
+            self.m1_config.target_resolution = target_resolution
+            self.layout_config["resolution"] = list(target_resolution)
+        else:
+            # Use configured or default to 720p for speed
+            res = self.layout_config.get("resolution", [1280, 720])
+            self.m1_config.target_resolution = tuple(res)
+            
+        self.resolution = self.m1_config.target_resolution
+        
+        # Initialize components
+        self.memory_manager = MemoryManager(self.m1_config.max_memory_mb)
+        self.asset_manager = AssetManager(self.layout_config, self.resolution)
+        self.encoder = VideoEncoderM1(self.m1_config)
+        self.compositor = SceneCompositor(self.asset_manager, self.layout_config)
+        
+        self.logger.info(f"M1 Video Generator initialized")
+        self.logger.info(f"Resolution: {self.resolution}")
+        self.logger.info(f"Hardware acceleration: VideoToolbox={self.encoder.has_videotoolbox}")
+        
+    def render_video(self, script_path: str, metadata_path: str, 
+                    subtitle_path: str, output_path: str,
+                    max_events: Optional[int] = None) -> bool:
+        """Render video with M1 optimizations"""
+        self.logger.info("Starting M1-optimized video generation")
+        start_memory = self.memory_manager.check_memory()
         
         try:
-            # Load and validate input files
-            script_data = self._load_json_file(script_path)
-            metadata_list = self._load_json_file(metadata_path)
-            subtitles = self._load_json_file(subtitle_path)
+            # Load input files
+            with open(script_path, 'r') as f:
+                script_data = json.load(f)
+            with open(metadata_path, 'r') as f:
+                metadata_list = json.load(f)
+            with open(subtitle_path, 'r') as f:
+                subtitles = json.load(f)
             
-            # Convert metadata to dict for faster lookup
+            # Convert metadata to dict
             metadata = {item['event_index']: item for item in metadata_list}
             
+            # Limit events if requested
             if max_events:
                 script_data = script_data[:max_events]
-                self.logger.info(f"Processing {max_events} events (limited)")
             
-            # Process events and create clips with proper timing
-            final_clips = []
+            total_events = len(script_data)
+            self.logger.info(f"Processing {total_events} events")
+            
+            # Process events in optimized batches
+            clips = []
             current_time_ms = 0
-            quest_history = []
+            batch_size = self.m1_config.optimal_batch_size
             
-            for i, event in enumerate(script_data):
-                try:
-                    # Update quest history based on events
-                    if event.get("event_type") == "TEAM_PROPOSAL":
-                        quest_history.append({
-                            "quest_number": len(quest_history) + 1,
-                            "team": event.get("team", []),
-                            "result": "PROPOSED"
-                        })
-                    elif event.get("event_type") == "QUEST_RESULT":
-                        if quest_history:
-                            quest_history[-1]["result"] = event.get("result", "UNKNOWN")
-
-                    audio_info = metadata.get(i)
+            for i in range(0, total_events, batch_size):
+                batch = script_data[i:i + batch_size]
+                batch_num = i // batch_size + 1
+                total_batches = (total_events + batch_size - 1) // batch_size
+                
+                self.logger.info(f"Processing batch {batch_num}/{total_batches}")
+                
+                # Check memory before processing batch
+                self.memory_manager.optimize_if_needed()
+                
+                # Process batch
+                for j, event in enumerate(batch):
+                    event_idx = i + j
+                    audio_info = metadata.get(event_idx)
+                    
                     if not audio_info or audio_info.get("duration_ms", 0) <= 0:
                         continue
-
+                    
                     duration_ms = audio_info["duration_ms"]
                     duration_sec = duration_ms / 1000.0
-                    
-                    # Load audio with error handling
                     audio_path = audio_info.get("file_path", "")
-                    if not os.path.exists(audio_path):
-                        self.logger.warning(f"Audio file not found: {audio_path}")
+                    
+                    # Create event clip
+                    clip = self.compositor.create_event_clip(
+                        event, audio_path, duration_sec,
+                        subtitles, current_time_ms
+                    )
+                    
+                    if clip:
+                        clips.append(clip)
                         current_time_ms += duration_ms
-                        continue
-                        
-                    audio_clip = AudioFileClip(audio_path)
                     
-                    # Create base scene for this event
-                    base_clip = self.asset_cache['background'].with_duration(duration_sec)
-                    visual_layers = [base_clip]
-
-                    # Add quest dashboard
-                    dashboard_clip = self._create_quest_dashboard_clip(quest_history, duration_sec)
-                    if dashboard_clip:
-                        visual_layers.append(dashboard_clip)
-                    
-                    # Determine leader for this event
-                    leader_id = self._determine_leader(event)
-                    
-                    # Add all player avatars with text labels
-                    for p_id, assets in self.asset_cache['players'].items():
-                        if 'avatar_clip' in assets:
-                            avatar = assets['avatar_clip'].with_duration(duration_sec)
-                            visual_layers.append(avatar)
-                            
-                            # Add appropriate text label (leader or normal)
-                            if leader_id is not None and p_id == leader_id:
-                                # Add red leader tag
-                                leader_tag = self._create_leader_tag(p_id, duration_sec)
-                                if leader_tag:
-                                    visual_layers.append(leader_tag)
-                            else:
-                                # Add normal model tag
-                                model_tag_text = self._create_model_tag(p_id, duration_sec)
-                                if model_tag_text:
-                                    visual_layers.append(model_tag_text)
-                    
-                    # Add speaking indicators with proper layering
-                    speaking_id = self._get_speaking_player_id(event)
-                    if speaking_id is not None and speaking_id in self.asset_cache['players']:
-                        player_assets = self.asset_cache['players'][speaking_id]
-                        
-                        # Add speaking border OVER the avatar
-                        if 'border_speaking' in player_assets:
-                            border_clip = player_assets['border_speaking'].with_duration(duration_sec)
-                            visual_layers.append(border_clip)
-                        
-                        # Re-add speaking player's avatar on top of border
-                        if 'avatar_clip' in player_assets:
-                            speaking_avatar = player_assets['avatar_clip'].with_duration(duration_sec)
-                            visual_layers.append(speaking_avatar)
-                    
-                    # Add subtitle clips for this event
-                    subtitle_clips = self._create_subtitle_clips(subtitles, current_time_ms, duration_ms)
-                    if subtitle_clips:
-                        self.logger.info(f"Adding {len(subtitle_clips)} subtitle clips to visual layers for event {i}")
-                        visual_layers.extend(subtitle_clips)
-
-                    # Add info panel for the event
-                    info_panel_clip = self._create_info_panel_clip(event, duration_sec)
-                    if info_panel_clip:
-                        visual_layers.append(info_panel_clip)
-
-                    # Composite all layers
-                    event_clip = CompositeVideoClip(visual_layers, size=self.resolution)
-                    event_clip = event_clip.with_duration(duration_sec).with_audio(audio_clip)
-                    final_clips.append(event_clip)
-                    
-                    current_time_ms += duration_ms
-                    
-                except Exception as e:
-                    self.logger.error(f"Failed to process event {i}: {e}")
-                    traceback.print_exc()
-                    continue
-
-            if not final_clips:
-                self.logger.error("No valid clips were generated")
-                return False
-
-            self.logger.info(f"Concatenating {len(final_clips)} event clips...")
-            final_video = concatenate_videoclips(final_clips)
-
-            # Render with optimized settings
-            self.logger.info(f"Rendering video... Duration: {final_video.duration:.2f}s")
+                    # Progress update
+                    progress = ((event_idx + 1) / total_events) * 100
+                    self.logger.info(f"Progress: {progress:.1f}%")
+                
+                # Clear caches periodically
+                if batch_num % 5 == 0:
+                    self.asset_manager.clear_cache()
+                    gc.collect()
             
-            try:
-                # Determine optimal codec and settings
-                render_settings = self._get_optimal_render_settings()
-                
-                final_video.write_videofile(
-                    output_path, 
-                    fps=24, 
-                    codec=render_settings['video_codec'], 
-                    audio_codec=render_settings['audio_codec'], 
-                    threads=render_settings['threads'],
-                    preset=render_settings['preset'],
-                    logger='bar',
-                    temp_audiofile='temp-audio.m4a',
-                    remove_temp=True
-                )
-                
-                self.logger.info(f"Video generation complete! Saved to {output_path}")
-                return True
-                
-            except Exception as render_error:
-                self.logger.error(f"Rendering failed: {render_error}")
+            if not clips:
+                self.logger.error("No clips generated")
                 return False
-                
-            finally:
-                # Always cleanup resources
-                self._cleanup_resources(final_video, final_clips)
+            
+            # Concatenate clips
+            self.logger.info(f"Concatenating {len(clips)} clips...")
+            final_video = concatenate_videoclips(clips)
+            
+            # Render with M1 optimizations
+            self.logger.info(f"Rendering video (duration: {final_video.duration:.1f}s)...")
+            encoding_params = self.encoder.get_encoding_params()
+            
+            final_video.write_videofile(
+                output_path,
+                **encoding_params,
+                logger='bar'
+            )
+            
+            # Cleanup
+            final_video.close()
+            for clip in clips:
+                if hasattr(clip, 'close'):
+                    clip.close()
+            
+            # Report performance
+            end_memory = self.memory_manager.check_memory()
+            memory_used = end_memory - start_memory
+            self.logger.info(f"✅ Video generated successfully: {output_path}")
+            self.logger.info(f"Memory used: {memory_used:.1f}MB")
+            
+            return True
             
         except Exception as e:
             self.logger.error(f"Video generation failed: {e}")
+            import traceback
             traceback.print_exc()
             return False
-    
-    def _load_json_file(self, filepath: str) -> Any:
-        """Load and validate JSON file."""
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"File not found: {filepath}")
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in {filepath}: {e}")
-    
-    def _get_speaking_player_id(self, event: Dict[str, Any]) -> Optional[int]:
-        """Extract speaking player ID with error handling."""
-        try:
-            player_id_str = event.get("player_id")
-            if player_id_str is not None:
-                # Handle both PLAYER_SPEECH events and direct player_id
-                if isinstance(player_id_str, str) and player_id_str.isdigit():
-                    return int(player_id_str)
-                elif isinstance(player_id_str, int):
-                    return player_id_str
-            # For NARRATOR or other non-numeric IDs, no highlighting
-        except (ValueError, TypeError):
-            pass
-        return None
-    
-    def _get_optimal_render_settings(self) -> Dict[str, Any]:
-        """Determine optimal rendering settings based on system capabilities."""
-        import platform
-        
-        settings = {
-            'video_codec': 'libx264',
-            'audio_codec': 'aac',
-            'threads': min(8, os.cpu_count() or 4),
-            'preset': 'medium'
-        }
-        
-        system = platform.system()
-        
-        # Use hardware acceleration on macOS if available
-        if system == 'Darwin':
-            try:
-                # Test if videotoolbox is available
-                import subprocess
-                result = subprocess.run(['ffmpeg', '-hide_banner', '-encoders'], 
-                                      capture_output=True, text=True, timeout=5)
-                if 'h264_videotoolbox' in result.stdout:
-                    settings['video_codec'] = 'h264_videotoolbox'
-                    settings['preset'] = 'fast'
-            except:
-                pass  # Fallback to libx264
-        
-        # Adjust threads based on system load
-        try:
-            import psutil
-            available_memory_gb = psutil.virtual_memory().available / (1024**3)
-            if available_memory_gb < 4:
-                settings['threads'] = min(4, settings['threads'])
-                settings['preset'] = 'fast'
-            elif available_memory_gb > 16:
-                settings['threads'] = min(12, os.cpu_count() or 8)
-        except ImportError:
-            pass  # psutil not available, use defaults
-        
-        self.logger.info(f"Using render settings: {settings}")
-        return settings
-    
-    def _cleanup_resources(self, final_video, final_clips):
-        """Clean up video resources to prevent memory leaks."""
-        try:
-            if final_video:
-                final_video.close()
-                
-            if final_clips:
-                for clip in final_clips:
-                    try:
-                        if hasattr(clip, 'close'):
-                            clip.close()
-                    except:
-                        pass
-                        
-        except Exception as e:
-            self.logger.warning(f"Cleanup warning: {e}")
 
-if __name__ == "__main__":
+
+def main():
+    """Command-line interface"""
     import argparse
     import sys
+    import time
     
     parser = argparse.ArgumentParser(
-        description="Enhanced Video Generator with precise subtitle timing",
+        description="M1-Optimized Video Generator for AITheater",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+M1 Optimization Features:
+  - Hardware-accelerated encoding with VideoToolbox
+  - Memory-efficient processing for 16GB systems  
+  - Optimized for Apple Silicon architecture
+  - Configurable quality/speed tradeoffs
+
 Examples:
-  python video_generator.py script.json metadata.json subtitles.json output.mp4
-  python video_generator.py script.json metadata.json subtitles.json output.mp4 --max_events 10
-  python video_generator.py script.json metadata.json subtitles.json output.mp4 --config custom_layout.yaml
+  # Standard quality (720p)
+  python video_generator_m1.py script.json metadata.json subtitles.json output.mp4
+  
+  # High speed mode (480p)
+  python video_generator_m1.py script.json metadata.json subtitles.json output.mp4 --fast
+  
+  # Custom resolution
+  python video_generator_m1.py script.json metadata.json subtitles.json output.mp4 --resolution 640 360
         """
     )
     
-    parser.add_argument("script_file", help="Path to the input JSON script file")
-    parser.add_argument("metadata_file", help="Path to the audio metadata JSON file")
-    parser.add_argument("subtitle_file", help="Path to the subtitle JSON file")
-    parser.add_argument("output_file", help="Path for the output video file")
-    parser.add_argument("--max_events", type=int, help="Maximum number of events to render")
-    parser.add_argument("--config", default="data/layout.yaml", help="Path to layout config file")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+    parser.add_argument("script_file", help="Path to script JSON file")
+    parser.add_argument("metadata_file", help="Path to metadata JSON file")
+    parser.add_argument("subtitle_file", help="Path to subtitle JSON file")
+    parser.add_argument("output_file", help="Path for output video file")
+    parser.add_argument("--config", default="data/layout.yaml", help="Layout config file")
+    parser.add_argument("--max-events", type=int, help="Limit number of events")
+    parser.add_argument("--resolution", nargs=2, type=int, metavar=('WIDTH', 'HEIGHT'),
+                       help="Override output resolution (e.g., 1280 720)")
+    parser.add_argument("--fast", action="store_true", 
+                       help="Fast mode: 480p resolution for maximum speed")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
     
     args = parser.parse_args()
     
-    # Setup logging
-    log_level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    # Set resolution based on mode
+    if args.fast:
+        resolution = (640, 360)  # 360p for maximum speed
+        print(" Fast mode enabled: 360p resolution")
+    elif args.resolution:
+        resolution = tuple(args.resolution)
+        print(f" Custom resolution: {resolution[0]}x{resolution[1]}")
+    else:
+        resolution = None  # Use config default
     
     # Validate input files
-    missing_files = []
     for filepath in [args.script_file, args.metadata_file, args.subtitle_file]:
         if not os.path.exists(filepath):
-            missing_files.append(filepath)
-    
-    if missing_files:
-        print(f"Error: Missing input files: {', '.join(missing_files)}")
-        sys.exit(1)
+            print(f"❌ Error: File not found: {filepath}")
+            sys.exit(1)
     
     if not os.path.exists(args.config):
-        print(f"Error: Config file not found: {args.config}")
+        print(f"❌ Error: Config file not found: {args.config}")
         sys.exit(1)
     
+    # Initialize generator
     try:
-        generator = VideoGenerator(config_path=args.config)
+        print(" Initializing M1-optimized video generator...")
+        generator = M1VideoGenerator(
+            config_path=args.config,
+            target_resolution=resolution
+        )
+        
+        # Start timing
+        start_time = time.time()
+        
+        # Generate video
         success = generator.render_video(
             script_path=args.script_file,
             metadata_path=args.metadata_file,
@@ -637,14 +574,33 @@ Examples:
             max_events=args.max_events
         )
         
+        # Report results
+        elapsed = time.time() - start_time
+        
         if success:
-            print(f"✅ Video generation completed successfully: {args.output_file}")
-            sys.exit(0)
+            print(f"✅ Video generated successfully: {args.output_file}")
+            print(f"⏱️  Time taken: {elapsed:.1f} seconds")
+            
+            # Calculate performance metrics
+            if os.path.exists(args.output_file):
+                from moviepy.editor import VideoFileClip
+                video = VideoFileClip(args.output_file)
+                duration = video.duration
+                video.close()
+                
+                ratio = duration / elapsed if elapsed > 0 else 0
+                print(f" Performance: {ratio:.2f}:1 (video:render time)")
         else:
             print("❌ Video generation failed")
             sys.exit(1)
             
     except Exception as e:
         print(f"❌ Fatal error: {e}")
-        logging.exception("Fatal error during video generation")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
