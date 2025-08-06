@@ -137,7 +137,8 @@ class UnifiedLLMClient:
             response_text = response.choices[0].message.content
             self.history.append({"role": "assistant", "content": response_text}) # Add model response to history
             
-            cost = await litellm.completion_cost(completion_response=response)
+                        # Use litellm's cost tracking utility - this is NOT an async function
+            cost = litellm.completion_cost(completion_response=response)
             self.total_cost += cost
             
         except Exception as e:
@@ -370,7 +371,6 @@ Statement: [Your nomination statement and detailed reasoning.]
 
 class RoleAgent:
     """An LLM-driven Avalon Agent that adheres to the protocol."""
-"""
 
     def get_assassination_discussion_prompt(self, player_id: int, role: str, proposal_target: int, proposal_reasoning: str, history_segment: str) -> str:
         return self.cothought_prompt + f"""
@@ -385,6 +385,7 @@ Format your response as:
 Statement: [Your analysis and recommendation]
 Reasoning: [Your thought process]
 """
+
 
     def get_assassination_final_decision_prompt(self, player_id: int, role: str, available_targets: List[int], history_segment: str) -> str:
         return self.cothought_prompt + f"""
@@ -405,17 +406,17 @@ Reasoning: Your final, detailed explanation for your choice, taking into account
 class RoleAgent:
     """An LLM-driven Avalon Agent that adheres to the protocol."""
 
-    def __init__(self, player_id: int, llm_client_factory: Any):
+    def __init__(self, player_id: int, model_name: str = "gpt-4-turbo"):
         self.logger = logging.getLogger("debug")
         self.player_id = player_id
+        self.model_name = model_name # Store the model name
         self.role: Optional[str] = None
         self.game_id: Optional[str] = None
         self.known_info: Optional[str] = None
-        self.llm_client_factory = llm_client_factory
-        self.llm_client = None
+        self.llm_client: Optional[Union[UnifiedLLMClient, MockLLMClient]] = None
         self.prompt_manager = PromptManager()
         self.known_history_index: int = 0
-        self.logger.debug(f"Agent {self.player_id} created.")
+        self.logger.debug(f"Agent {self.player_id} created, will use model: {self.model_name}")
 
     async def receive_message(self, message: BaseMessage) -> Optional[BaseMessage]:
         self.logger.debug(f"[Agent {self.player_id} ({self.role})] Received: {{'msg_type': '{message.msg_type.value}', 'sender_id': '{message.sender_id}', 'recipient_id': '{message.recipient_id}', 'msg_id': '{message.msg_id}', 'correlation_id': '{message.correlation_id}', 'payload': {json.dumps(message.payload, default=lambda o: o.__dict__, indent=2)}}})")
@@ -432,7 +433,8 @@ class RoleAgent:
         self.known_info = payload.initial_personal_info.get("known_info", "You have no special knowledge.")
         
         system_prompt = f"{payload.game_rules}\n{payload.role_context}\nYou are a player in The Resistance: Avalon. Your role is {self.role}. "
-        self.llm_client = self.llm_client_factory(system_prompt=system_prompt)
+        # Instantiate the LLM client directly with the stored model name
+        self.llm_client = UnifiedLLMClient(model=self.model_name, system_prompt=system_prompt)
         self.known_history_index = 0
 
         self.logger.debug(f"Agent {self.player_id} ({self.role}) initialized. Known info: {self.known_info}")

@@ -8,7 +8,7 @@ import os
 import sys
 import logging
 from tools.subtitle_generator import generate_precise_subtitles
-from tools.video_generator import VideoGenerator
+from tools.video_generator import OpenCVVideoGenerator as VideoGenerator
 
 def main():
     """Generate video with precise subtitles."""

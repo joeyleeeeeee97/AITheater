@@ -58,3 +58,4 @@ outputs/
 
 # OS-specific
 .DS_Store
+__pycache__/

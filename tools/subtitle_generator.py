@@ -1,296 +1,177 @@
 import json
 import logging
 import os
-import tempfile
-from typing import List, Dict, Any, Optional
-import re
+import time
+from typing import List, Dict, Any
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def _get_word_level_timestamps_whisper(audio_path: str, text: str) -> List[Dict[str, Any]]:
-    """Use Whisper for accurate word-level timestamp alignment."""
-    try:
-        import whisper
-        import torch
-        
-        # Load Whisper model (using small model for speed, can use larger for accuracy)
-        model = whisper.load_model("base")
-        
-        # Transcribe with word-level timestamps, using the script as a prompt
-        result = model.transcribe(
-            audio_path,
-            word_timestamps=True,
-            initial_prompt=text,
-            verbose=False
-        )
-        
-        word_timings = []
-        if "segments" in result:
-            for segment in result["segments"]:
-                if "words" in segment:
-                    for word_info in segment["words"]:
-                        word_timings.append({
-                            "word": word_info["word"].strip(),
-                            "start_ms": int(word_info["start"] * 1000),
-                            "end_ms": int(word_info["end"] * 1000)
-                        })
-        
-        return word_timings
-        
-    except ImportError:
-        logging.warning("Whisper not available, falling back to speech_recognition")
-        return _get_word_level_timestamps_sr(audio_path, text)
-    except Exception as e:
-        logging.error(f"Whisper transcription failed: {e}")
-        return _fallback_word_timing(text, 0, 5000)  # 5 second fallback
+# --- Faster-Whisper Timing Generation (Optimized and Robust) ---
 
-def _get_word_level_timestamps_sr(audio_path: str, text: str) -> List[Dict[str, Any]]:
-    """Use speech_recognition with pocketsphinx for word-level alignment."""
-    try:
-        import speech_recognition as sr
-        from pydub import AudioSegment
-        
-        # Convert to WAV if needed
-        audio = AudioSegment.from_file(audio_path)
-        
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
-            audio.export(temp_wav.name, format="wav")
-            
-            r = sr.Recognizer()
-            with sr.AudioFile(temp_wav.name) as source:
-                audio_data = r.record(source)
-            
-            # Try to get word-level timing with pocketsphinx
-            try:
-                # This requires pocketsphinx with word timing support
-                result = r.recognize_sphinx(audio_data, show_all=True)
-                if hasattr(result, 'words'):
-                    word_timings = []
-                    for word_info in result.words:
-                        word_timings.append({
-                            "word": word_info.word,
-                            "start_ms": int(word_info.start_time * 1000),
-                            "end_ms": int(word_info.end_time * 1000)
-                        })
-                    return word_timings
-            except:
-                pass
-            
-            os.unlink(temp_wav.name)
-            
-    except ImportError:
-        logging.warning("speech_recognition not available")
-    except Exception as e:
-        logging.error(f"Speech recognition failed: {e}")
-    
-    # Fallback to estimated timing
-    duration_ms = _get_audio_duration_ms(audio_path)
-    return _fallback_word_timing(text, 0, duration_ms)
+# Global variable to hold the loaded Whisper model.
+WHISPER_MODEL = None
 
-def _get_audio_duration_ms(audio_path: str) -> int:
-    """Get audio duration in milliseconds."""
-    try:
-        from pydub import AudioSegment
-        audio = AudioSegment.from_file(audio_path)
-        return len(audio)
-    except:
+def load_whisper_model(model_size: str = "medium"):
+    """Loads the faster-whisper model into a global variable."""
+    global WHISPER_MODEL
+    if WHISPER_MODEL is None:
         try:
-            import librosa
-            y, sr = librosa.load(audio_path)
-            return int(len(y) / sr * 1000)
-        except:
-            return 5000  # 5 second fallback
+            from faster_whisper import WhisperModel
+            logging.info(f"Loading faster-whisper model ('{model_size}')... This may take a moment.")
+            # For M1 Mac, using CPU with int8 quantization is a good balance.
+            WHISPER_MODEL = WhisperModel(model_size, device="cpu", compute_type="int8")
+            logging.info("Faster-whisper model loaded successfully.")
+        except ImportError:
+            logging.error("faster-whisper is not installed. Please run: pip install faster-whisper")
+            WHISPER_MODEL = "UNAVAILABLE"
+        except Exception as e:
+            logging.error(f"Failed to load faster-whisper model: {e}")
+            WHISPER_MODEL = "UNAVAILABLE"
 
-def _fallback_word_timing(text: str, start_ms: int, duration_ms: int) -> List[Dict[str, Any]]:
-    """Fallback word timing based on speech rate (more accurate than character count)."""
-    words = text.split()
-    if not words:
+def _validate_transcription(original_text: str, transcribed_words: List[str]) -> bool:
+    """Performs a sanity check on the transcription quality."""
+    if not transcribed_words:
+        return False
+    original_words = set(word.lower().strip(".,!?\"'") for word in original_text.split())
+    matched_words = sum(1 for word in transcribed_words if word.lower().strip(".,!?\"'") in original_words)
+    match_ratio = matched_words / len(transcribed_words)
+    if match_ratio < 0.5:
+        logging.warning(f"Validation failed. Match ratio: {match_ratio:.2f}. "
+                        f"Original: '{original_text}', Transcribed: '{" ".join(transcribed_words)}'")
+        return False
+    return True
+
+def _get_word_level_timestamps_whisper(audio_path: str, text: str, max_retries: int = 2) -> List[Dict[str, Any]]:
+    """Use the pre-loaded faster-whisper model for alignment."""
+    if WHISPER_MODEL is None or WHISPER_MODEL == "UNAVAILABLE":
+        logging.error("Whisper model is not available. Cannot process audio.")
         return []
-    
-    # Average speaking rate: 150-200 words per minute
-    # Use 175 WPM as baseline, adjust for text complexity
-    avg_wpm = 175
-    
-    # Adjust WPM based on text characteristics
-    avg_word_length = sum(len(w) for w in words) / len(words)
-    if avg_word_length > 6:  # Complex words
-        avg_wpm *= 0.8
-    elif avg_word_length < 4:  # Simple words
-        avg_wpm *= 1.2
-    
-    # Calculate timing
-    total_speaking_time_ms = (len(words) / avg_wpm) * 60 * 1000
-    
-    # If calculated time exceeds available time, adjust
-    if total_speaking_time_ms > duration_ms * 0.9:  # Leave 10% buffer
-        time_per_word = (duration_ms * 0.9) / len(words)
-    else:
-        time_per_word = total_speaking_time_ms / len(words)
-    
-    word_timings = []
-    current_time = start_ms
-    
-    for word in words:
-        # Adjust timing based on word characteristics
-        word_duration = time_per_word
-        if any(p in word for p in '.!?;:'):
-            word_duration *= 1.3  # Pause for punctuation
-        elif len(word) > 8:
-            word_duration *= 1.2  # Longer words take more time
+
+    for attempt in range(max_retries + 1):
+        try:
+            segments, _ = WHISPER_MODEL.transcribe(
+                audio_path,
+                language="en",
+                word_timestamps=True,
+                initial_prompt=text
+            )
+            
+            word_timings = []
+            transcribed_words = []
+            for segment in segments:
+                for word in segment.words:
+                    clean_word = word.word.strip()
+                    if not clean_word: continue
+                    transcribed_words.append(clean_word)
+                    word_timings.append({
+                        "word": clean_word,
+                        "start_ms": int(word.start * 1000),
+                        "end_ms": int(word.end * 1000)
+                    })
+
+            if _validate_transcription(text, transcribed_words):
+                return word_timings
+            else:
+                logging.warning(f"Attempt {attempt + 1}/{max_retries + 1} failed validation for {os.path.basename(audio_path)}.")
+
+        except Exception as e:
+            logging.error(f"Faster-whisper transcription for {os.path.basename(audio_path)} on attempt {attempt + 1} failed: {e}")
         
-        word_timings.append({
-            "word": word,
-            "start_ms": int(current_time),
-            "end_ms": int(current_time + word_duration)
-        })
-        current_time += word_duration
-    
-    return word_timings
+        if attempt < max_retries:
+            time.sleep(2)
+
+    logging.error(f"All {max_retries + 1} attempts failed for {os.path.basename(audio_path)}.")
+    return []
 
 def _create_subtitle_chunks(word_timings: List[Dict[str, Any]], max_words_per_chunk: int = 6) -> List[Dict[str, Any]]:
-    """Group words into subtitle chunks for optimal readability."""
-    if not word_timings:
-        return []
-    
-    chunks = []
-    current_chunk_words = []
+    """Group words into subtitle chunks."""
+    if not word_timings: return []
+    chunks, current_chunk_words = [], []
     chunk_start_ms = word_timings[0]["start_ms"]
-    
     for i, word_timing in enumerate(word_timings):
         current_chunk_words.append(word_timing["word"])
-        
-        # Determine if we should break the chunk
-        is_punctuation_break = any(p in word_timing["word"] for p in '.!?')
-        is_comma_break = ',' in word_timing["word"] and len(current_chunk_words) >= 3
+        is_punctuation = any(p in word_timing["word"] for p in '.!?')
+        is_comma = ',' in word_timing["word"] and len(current_chunk_words) >= 3
         is_max_words = len(current_chunk_words) >= max_words_per_chunk
-        is_last_word = i == len(word_timings) - 1
-        
-        should_break = is_punctuation_break or is_comma_break or is_max_words or is_last_word
-        
-        if should_break:
+        is_last = i == len(word_timings) - 1
+        if is_punctuation or is_comma or is_max_words or is_last:
             chunk_text = " ".join(current_chunk_words).strip()
             if chunk_text:
-                # Ensure minimum display time (1 second per chunk)
-                min_duration = 1000
-                chunk_duration = word_timing["end_ms"] - chunk_start_ms
                 end_time = word_timing["end_ms"]
-                
-                if chunk_duration < min_duration and not is_last_word:
-                    end_time = chunk_start_ms + min_duration
-                
-                chunks.append({
-                    "text": chunk_text,
-                    "start_ms": chunk_start_ms,
-                    "end_ms": end_time
-                })
-            
-            # Reset for next chunk
+                if (end_time - chunk_start_ms) < 1000 and not is_last:
+                    end_time = chunk_start_ms + 1000
+                chunks.append({"text": chunk_text, "start_ms": chunk_start_ms, "end_ms": end_time})
             current_chunk_words = []
-            if not is_last_word:
-                chunk_start_ms = word_timings[i + 1]["start_ms"]
-    
+            if not is_last: chunk_start_ms = word_timings[i + 1]["start_ms"]
     return chunks
 
-def generate_precise_subtitles(metadata_file: str, subtitle_file: str, use_whisper: bool = True):
-    """
-    Generates precise word-level subtitles using speech recognition for accurate timing.
-    """
+def generate_precise_subtitles(metadata_file: str, subtitle_file: str):
+    """Generates precise subtitles using a single-process, robust faster-whisper implementation."""
     logging.info(f"Reading audio metadata from: {metadata_file}")
     try:
         with open(metadata_file, 'r', encoding='utf-8') as f:
             audio_metadata = json.load(f)
-    except FileNotFoundError:
-        logging.error(f"Metadata file not found: {metadata_file}")
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logging.error(f"Failed to read or parse metadata file: {e}")
         return
-    except json.JSONDecodeError as e:
-        logging.error(f"Invalid JSON in metadata file: {e}")
+
+    load_whisper_model()
+    if WHISPER_MODEL == "UNAVAILABLE":
+        logging.error("Cannot proceed with subtitle generation as Whisper model failed to load.")
         return
 
     all_subtitles = []
     current_time_ms = 0
-
     for item in audio_metadata:
-        try:
-            duration_ms = int(item.get("duration_ms", 0))
-            text = str(item.get("text", "")).strip()
-            event_index = item.get("event_index")
-            audio_path = item.get("file_path", "")
+        duration_ms = int(item.get("duration_ms", 0))
+        text = str(item.get("text", "")).strip()
+        audio_path = item.get("file_path", "")
+        event_index = item.get("event_index")
 
-            if not text or duration_ms <= 0:
-                current_time_ms += duration_ms
-                continue
-
-            # Get accurate word-level timestamps
-            if use_whisper and os.path.exists(audio_path):
-                logging.info(f"Using Whisper for precise timing on event {event_index}")
-                word_timings = _get_word_level_timestamps_whisper(audio_path, text)
-            elif os.path.exists(audio_path):
-                logging.info(f"Using speech recognition for timing on event {event_index}")
-                word_timings = _get_word_level_timestamps_sr(audio_path, text)
+        if text and duration_ms > 0 and os.path.exists(audio_path):
+            logging.info(f"Processing event {event_index} with faster-whisper...")
+            word_timings = _get_word_level_timestamps_whisper(audio_path, text)
+            
+            if word_timings:
+                for timing in word_timings:
+                    timing["start_ms"] += current_time_ms
+                    timing["end_ms"] += current_time_ms
+                
+                subtitle_chunks = _create_subtitle_chunks(word_timings)
+                
+                for i, chunk in enumerate(subtitle_chunks):
+                    all_subtitles.append({
+                        "event_index": event_index,
+                        "chunk_index": i,
+                        "start_ms": chunk["start_ms"],
+                        "end_ms": chunk["end_ms"],
+                        "text": chunk["text"],
+                        "word_count": len(chunk["text"].split()),
+                        "source": "faster-whisper-medium"
+                    })
             else:
-                logging.warning(f"Audio file not found: {audio_path}, using fallback timing")
-                word_timings = _fallback_word_timing(text, 0, duration_ms)
-            
-            # Adjust word timings to absolute time
-            for word_timing in word_timings:
-                word_timing["start_ms"] += current_time_ms
-                word_timing["end_ms"] += current_time_ms
-            
-            # Create subtitle chunks with precise timing
-            subtitle_chunks = _create_subtitle_chunks(word_timings)
-            
-            # Add chunks to subtitles
-            for i, chunk in enumerate(subtitle_chunks):
-                all_subtitles.append({
-                    "event_index": event_index,
-                    "chunk_index": i,
-                    "start_ms": chunk["start_ms"],
-                    "end_ms": chunk["end_ms"],
-                    "text": chunk["text"],
-                    "word_count": len(chunk["text"].split()),
-                    "source": "whisper" if use_whisper and os.path.exists(audio_path) else "fallback"
-                })
-            
-            # If no chunks created, add full text as fallback
-            if not subtitle_chunks:
-                all_subtitles.append({
-                    "event_index": event_index,
-                    "chunk_index": 0,
-                    "start_ms": current_time_ms,
-                    "end_ms": current_time_ms + duration_ms,
-                    "text": text,
-                    "word_count": len(text.split()),
-                    "source": "fallback"
-                })
-            
-            current_time_ms += duration_ms
-            
-        except (ValueError, TypeError) as e:
-            logging.warning(f"Skipping invalid metadata item {item}: {e}")
-            continue
+                logging.warning(f"No subtitles generated for event {event_index}.")
+        else:
+            logging.warning(f"Skipping event {event_index} due to missing text, duration, or audio file.")
 
-    logging.info(f"Generated {len(all_subtitles)} precise subtitle entries.")
+        current_time_ms += duration_ms
+
+    logging.info(f"Generated {len(all_subtitles)} final subtitle entries.")
     
     try:
         with open(subtitle_file, 'w', encoding='utf-8') as f:
             json.dump(all_subtitles, f, indent=2, ensure_ascii=False)
         logging.info(f"Precise subtitles successfully saved to: {subtitle_file}")
     except IOError as e:
-        logging.error(f"Failed to save subtitles: {e}")
-
-# Backward compatibility
-def generate_simple_subtitles(metadata_file: str, subtitle_file: str):
-    """Legacy function for backward compatibility."""
-    generate_precise_subtitles(metadata_file, subtitle_file, use_whisper=True)
-
+        logging.error(f"Failed to save final subtitles: {e}")
 
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="Generate sentence-level subtitles from audio metadata.")
+    parser = argparse.ArgumentParser(description="Generate subtitles using faster-whisper.")
     parser.add_argument("metadata_file", help="Path to the input audio metadata JSON file.")
     parser.add_argument("subtitle_file", help="Path for the output subtitle JSON file.")
     args = parser.parse_args()
 
-    generate_simple_subtitles(args.metadata_file, args.subtitle_file)
+    generate_precise_subtitles(args.metadata_file, args.subtitle_file)
