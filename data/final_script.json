@@ -1,0 +1,509 @@
+[
+  {
+    "event_type": "GAME_START",
+    "player_id": null,
+    "content": "--- Game Start ---"
+  },
+  {
+    "event_type": "GAME_START",
+    "content": "--- Starting Quest 1 ---"
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "content": "--- Team Building Attempt (Leader: Player 0) ---"
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 0,
+    "content": "Alright everyone, (warmly) as the first leader, (calmly) my goal is to propose a team that gives us the clearest possible information moving forward. (beat) There's nothing to go on yet, so we have to create our own baseline for trust."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 1,
+    "content": "This seems like a perfectly reasonable first proposal. (confidently) I know *I'm* a loyal servant, (beat) so from my perspective, the success of this mission rests entirely on Player 0. (calmly) Since we have no information yet, I'm willing to approve this to get the game moving and see how the votes fall. (thoughtfully) A rejection on this simple team would be very telling. (decisively) I'm voting approve."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 2,
+    "content": "I'm approving this. (quickly) At this stage, the team itself is less important than the votes on it. (coldly) Rejecting the very first, smallest possible team tells us more about the person rejecting it than anything else. (beat) I'm far more interested in seeing who votes against a simple information-gathering mission than I am in debating the merits of two players we know nothing about. (impatiently) Let's get the votes on the board."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 3,
+    "content": "I agree with the general principle of getting information on the board early. (thoughtfully) However, (with a slight pause) I find Player 2's eagerness to rush this vote a bit strange. (carefully) For me, the first proposal isn't just about getting votes on the table, it's about hearing everyone's initial logic. (beat) Rushing past the discussion seems counter-productive. (calmly) I'll still approve this team, but I'm definitely noting who is trying to speed things up and who is trying to think things through."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 4,
+    "content": "Player 3 raises a very important point. (seriously) I was also struck by Player 2's statement that the team itself is 'less important than the votes on it.' (incredulously) That feels backwards. (firmly) The team *is* the entire point. (beat) It feels like a way to rush a potentially bad team through by shifting focus to anyone who might reject it. (thoughtfully) We *should* be scrutinizing the team, not just the votes. (beat) For now, on Mission 1, it's probably fine to see what happens. (nonchalantly) I'll approve this time, but I'm paying *very* close attention to that line of reasoning."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 5,
+    "content": "I've been listening to the discussion, (calmly) and I think Players 3 and 4 have raised valid concerns about the reasoning we're hearing. (conciliatory) However, (with a pause) I believe the strategic value of this specific team lies not in the debate before the vote, but in the clean information we get *after*. (reasoning) This is a perfect control group. (matter-of-factly) If the mission fails, our list of suspects is only two people long. If it succeeds, we have our first potential building block for future teams. (decisively) For the sake of getting that clear result, I will be voting to approve this team."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 6,
+    "content": "I think Players 3 and 4 have correctly identified the most important moment of this discussion. (firmly) Player 2's logic that the team is secondary to the votes is deeply flawed; (beat) the mission is *always* the primary objective. (seriously) While that makes me suspicious of Player 2's motives, (beat) it doesn't change the fact that Player 0 has proposed the best possible team for gathering information. (calmly) A success gives us two strong candidates for good, a fail narrows the search to just two people. (decisively) I am approving this team, but Player 2's reasoning will be the first thing I consider when we evaluate the results of this mission."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 0,
+    "content": "I want to thank everyone for their input. (warmly) The discussion has been incredibly valuable, (calmly) and it seems we have a consensus, which is a great start. (confidently) I am confirming my proposed team of myself (Player 0) and Player 1."
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 1,
+    "content": "Player 1 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 2,
+    "content": "Player 2 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 3,
+    "content": "Player 3 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 4,
+    "content": "Player 4 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 5,
+    "content": "Player 5 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 6,
+    "content": "Player 6 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 0,
+    "content": "Player 0 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": null,
+    "content": "Vote Result: 7 approved, 0 rejected. (with finality) Team approved."
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "player_id": null,
+    "content": "Quest cards have been revealed: ['success', 'success']"
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "player_id": null,
+    "content": "There were 0 fail votes."
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "player_id": null,
+    "content": "Quest SUCCEEDED. (triumphantly)"
+  },
+  {
+    "event_type": "GAME_START",
+    "content": "--- Starting Quest 2 ---"
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "content": "--- Team Building Attempt (Leader: Player 1) ---"
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "player_id": 1,
+    "content": "Leader (Player 1) is proposing a team."
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "player_id": 1,
+    "content": "Leader 1 (Percival) proposes initial team: [1, 0, 2] with reasoning: My proposal is built on the only solid information we have: the success of Mission 1."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 2,
+    "content": "This is (firmly) the only logical proposal. (Confidently) I'm voting approve, and I expect every loyal servant to do the same. (Matter-of-factly) Player 1 is doing exactly what they should: taking the only piece of concrete information we have\u2014the successful Mission 1 team of [0, 1]\u2014and building upon it. This team allows us to expand our circle of trust from a proven core. Any rejection of this team is a rejection of the single success we have managed to achieve. Let's not overthink it; let's approve this and get another win on the board."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 3,
+    "content": "Player 2's sudden and absolute certainty is (with a long pause) the single most suspicious thing I've seen yet. (Calmly) Last round, they told us the team composition 'is less important than the votes on it.' (With rising suspicion) Now, they are declaring that this team, with *them* on it, is 'the only logical proposal' and demanding every loyal servant approve it. (Accusingly) That is a massive contradiction. (Reasonably) We have a proven core in Players 0 and 1, but why would we risk that success by adding the one player who has been the most logically inconsistent? (Concerned) It feels like we're being railroaded into a decision. (Decisively) I'm rejecting this team, and I urge others to do the same. This risk is not worth taking."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 4,
+    "content": "Player 3 has articulated this perfectly, (with approval) and I'm glad they did because it needs to be said. (Seriously) The problem isn't just the contradiction in Player 2's logic between Mission 1 and Mission 2. (Gravely) The real danger is the attempt to dictate thought. (With disdain) The line 'I expect every loyal servant to do the same' is deeply concerning. It's an attempt to shut down discussion and frame anyone who disagrees as a potential traitor. (Calmly, reasonably) That is not how loyal servants operate. We win by questioning everything, not by blindly following someone who declares their proposal is the 'only logical' one. (Firmly) This team is now tainted by that rhetoric, and approving it would validate a dangerous precedent. We must reject this."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 5,
+    "content": "I'll keep this brief (quickly) because Players 3 and 4 have already hit the nail on the head regarding Player 2's contradictory logic. (Matter-of-factly) The bigger issue for me is risk management. (Directly to Player 1) Player 1, you started with a solid core from Mission 1, which was the right move. But then you added the single most unpredictable and suspicious variable at the table to that core. (Questioningly) Why take that gamble? (Skeptically) It feels like we're being asked to approve a team that intentionally includes the highest-risk player. (Decisively) It\u2019s not a logical next step; it\u2019s a leap of faith I\u2019m not willing to take. We should be expanding our circle of trust carefully, not throwing a wrench in it. (Firmly) I'm rejecting this."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 6,
+    "content": "I'm echoing the sentiment of Players 3, 4, and 5. (Agreeably) The logical whiplash from Player 2 is too significant to overlook. (Thoughtfully) On Mission 1, they argued the team was unimportant, but now that they are on the proposed team, it is suddenly the 'only logical' choice. (With conviction) This isn't just an inconsistency; it's a self-serving reversal that screams 'get me on this mission at all costs.' (To Player 1) Player 1, I believe you are a loyal servant based on Mission 1, but adding the single most suspicious player to the trusted core is a mistake. (Firmly) I am rejecting this team because the risk is far too high. We can't afford to be bullied into a bad decision."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 0,
+    "content": "(Sincerely) Player 1, I believe your intention to build on our successful first mission was exactly right, and my trust in you is solid. (Regretfully) However, I have to agree with the overwhelming consensus here. (Seriously) The radical shift in Player 2's logic is the most suspicious event of the game so far. On Mission 1, they dismissed the team's importance, but now that they've been included, they're trying to shut down all dissent and frame it as the only option. (With conviction) That's not the behavior of a loyal servant trying to find the truth; it's the behavior of someone trying to force their way onto a mission. For that reason, despite being on the team myself, (Resignedly) I will be voting to reject it. This risk is too great. (Calmly) Let's see what team Player 2 proposes when the leadership passes to them; their choice will be very revealing."
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "player_id": 1,
+    "content": "Leader (Player 1) is making a final statement and confirming the team."
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "player_id": 1,
+    "content": "Leader 1 (Percival) confirms team for voting: [1, 0, 3] with reasoning: The discussion has been incredibly insightful, and I want to thank everyone for their sharp analysis. My initial proposal was intended as an aggressive information-gathering play to test Player 2. However, the subsequent discussion has made two things abundantly clear. First, Player 2's reaction and the complete reversal of their earlier logic is, as many of you pointed out, a massive red flag. Second, the overwhelming and near-unanimous sentiment of the table is that this risk is not worth taking.  A good leader listens. "
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "player_id": 1,
+    "content": "Leader (Player 1) automatically votes approve."
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 0,
+    "content": "Player 0 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 2,
+    "content": "Player 2 voted: reject"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 3,
+    "content": "Player 3 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 4,
+    "content": "Player 4 voted: reject"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 5,
+    "content": "Player 5 voted: reject"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 6,
+    "content": "Player 6 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 1,
+    "content": "Player 1 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": null,
+    "content": "Vote Result: 4 approved, 3 rejected. (with a slight pause) Team approved."
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "player_id": null,
+    "content": "Quest cards have been revealed: ['success', 'success', 'success']"
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "player_id": null,
+    "content": "There were 0 fail votes."
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "player_id": null,
+    "content": "Quest (with rising intonation) SUCCEEDED!"
+  },
+  {
+    "event_type": "GAME_START",
+    "player_id": null,
+    "content": "--- Starting Quest 3 ---"
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "player_id": 2,
+    "content": "--- Team Building Attempt (Leader: Player 2) ---"
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 2,
+    "content": "Look, (taking charge) let's start with the obvious: my reject vote on the last mission looks terrible in hindsight. (beat) Three of us\u2014myself, Player 4, and Player 5\u2014voted to reject a team that succeeded. (emphasizing) That is the single most important piece of information we have right now. (calmly) As a loyal servant, my job as leader is to investigate that anomaly. (firmly) Ignoring it would be irresponsible. (concluding) Therefore, this team is designed to do exactly that."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 3,
+    "content": "Player 2's reasoning is a complete and transparent misdirection. (accusingly) He claims he wants to investigate the three players who rejected the last successful team\u2014himself, Player 4, and Player 5\u2014but he conveniently only puts Player 4 on this mission. (sarcastically) This isn't an 'investigation,' (dropping sarcasm) it's an attempt to use the trusted core of Players 0 and 1 to clean his own reputation while isolating Player 4. (thoughtfully) However, his manipulative logic has accidentally stumbled upon a team that is likely safe. The team's strength comes from Players 0 and 1, not from Player 2's flawed justification. (decisively) I am voting to approve this team, but (warningly) we should all be asking: why did Player 2's grand investigation of the three rejecters only include one of them? (pointedly) The focus should remain squarely on him and Player 5."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 4,
+    "content": "Player 3 is correct that Player 2's reasoning is a self-serving smokescreen, (firmly) and we should not forget that. (beat) But we also can't ignore the fact that his clumsy attempt to shift blame has accidentally created the most informative team possible. (explaining) My entire reason for rejecting the last mission was to force this exact moment\u2014to see what Player 2 would do under pressure. He has responded by putting me, one of the three key suspects from that vote, on a team with the only two players we can trust, 0 and 1. (confidently) The result will be definitive. If this mission fails, it's me. There's no ambiguity. (challengingly) I welcome that test. (encouraging) Approve this team and let's get the clearest piece of information we've had all game."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 5,
+    "content": "I agree completely with Player 3 that Player 2's justification is a transparent and self-serving attempt to deflect blame. (suspiciously) I don't trust him, and I don't trust his reasoning. (beat) However, (with a shift in tone) I am going to separate the leader from the team itself. (explaining) The team he has proposed puts one of the three of us who rejected the last success\u2014Player 4\u2014on a mission with the only two players we have any confidence in, 0 and 1. (practically) This is the exact kind of information-gathering test we need. A success clears a major suspect, and a fail gives us our culprit with near certainty. (carefully) Despite the untrustworthy source, the team itself is strategically sound. (decisively) I'll be voting to approve it, but (with a warning glare) my eyes are still firmly on Player 2."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 6,
+    "content": "Player 2's reasoning is transparently self-serving, and we should all see it for what it is: (scornfully) a desperate attempt to shift the massive suspicion he earned by rejecting the last successful mission. (accusingly) He's not investigating anything; he's trying to save his own skin. (beat, shifting tone) That being said, (admitting) his clumsy attempt has resulted in an excellent team for us. It takes our trusted core of Players 0 and 1 and puts one of the three main suspects, Player 4, to the test. (positively) This is exactly the kind of clear, information-driven mission we need right now. (firmly) I'm voting approve, not because I trust the leader, but because I trust the team's ability to give us a definitive answer."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 0,
+    "content": "I'll add my voice to the chorus here. (directly to Player 2) Player 2, your reasoning is not fooling anyone. (bluntly) It was a transparent attempt to save yourself and cast shade on Player 4.  (however) However, in your clumsy attempt at misdirection, you've presented us with the perfect team. It uses the proven core of myself and Player 1, and puts one of the three Mission 2 rejecters, Player 4, under the microscope. (confidently) This is exactly the test we need. Player 4 has welcomed the scrutiny, which is a good sign. We must separate the untrustworthy leader from the strategically sound team. (commandingly) I am voting Approve, and I expect all loyal servants to do the same so we can get this definitive result."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 1,
+    "content": "I'll add my voice to the overwhelming consensus. (directly to Player 2) Player 2, your reasoning is not convincing anyone, and it has rightly put you under suspicion. (beat) But your clumsy attempt to save yourself has, as several have pointed out, accidentally created the perfect team for this moment. It takes the only two players with a perfect record\u2014myself and Player 0\u2014and puts one of the primary suspects, Player 4, directly under the microscope. (matter-of-factly) This is not about trusting you, the leader. It's about trusting the math. This team gives us the cleanest possible result. (calmly) Let's approve it, get our information, and then we can continue to analyze the motives of the person who proposed it."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 2,
+    "content": "The discussion has been illuminating. (smugly) It seems everyone agrees on two things: first, that you don't trust my motives, and second, (emphasizing) that despite that, this is the single best team we can possibly send. (mockingly) You've all called my reasoning 'clumsy' and 'transparent,' but you've also all independently concluded that my team of [0, 1, 4] is the perfect test. (defiantly) You can question my methods all you want, but you cannot question the result you've all agreed on. (firmly) My goal as leader was to force a definitive answer, and this team does exactly that. (declaratively) The debate is over. The team is set. Let's get the information we all claim to want."
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 0,
+    "content": "Player 0 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 1,
+    "content": "Player 1 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 3,
+    "content": "Player 3 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 4,
+    "content": "Player 4 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 5,
+    "content": "Player 5 voted: reject"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 6,
+    "content": "Player 6 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 2,
+    "content": "Player 2 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": null,
+    "content": "Vote Result: 6 approved, 1 rejected. (with a slight pause) Team approved."
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "player_id": null,
+    "content": "Quest cards have been revealed: ['fail', 'success', 'success']"
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "player_id": null,
+    "content": "There were 1 fail votes."
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "player_id": null,
+    "content": "Quest (with heavy emphasis) FAILED."
+  },
+  {
+    "event_type": "GAME_START",
+    "player_id": null,
+    "content": "--- Starting Quest 4 ---"
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "player_id": 3,
+    "content": "--- Team Building Attempt (Leader: Player 3) ---\nLeader (Player 3) is proposing a team."
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "player_id": 3,
+    "content": "Leader 3 (Merlin) proposes initial team: [0, 1, 3, 6] with reasoning: The results of Mission 3 have given us our first piece of undeniable evidence, and my proposal is built directly on that fact. This is not the time for risky experiments; it's the time for a decisive win."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 4,
+    "content": "So, (sarcastically) the 'perfect test' designed by Player 2, (with contempt) the most suspicious player at the table, failed. And now all eyes turn to me. (incredulously) Convenient, isn't it? (challengingly) You all called his logic self-serving and manipulative, yet you walked right into his trap. He didn't build a test; (angrily) he built a scapegoat! He needed that mission to fail, and he put me on it because I was an easy target after my vote on Mission 2.  You're looking at the symptom, not the disease. The disease is Player 2. (beat) The question you should be asking isn't 'who failed the mission?' (pointedly) The question is 'who made sure the mission would fail?' And the answer has been staring you in the face since he opened his mouth."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 5,
+    "content": "I was the only person to reject the last team, and now you see why. (smugly) I said it felt like a carefully constructed trap, and that's exactly what it was.  It wasn't a 'perfect test'; (with disdain) it was a perfect frame job. Player 2, (with contempt) the most suspicious player at the table, created a mission where if it failed, Player 4 was the only logical culprit. He built himself a scapegoat, and you all approved it.\n\nAnd now, Player 3, (accusingly) you're taking the bait. You're proposing a team based on the result of that manipulation. You're isolating the scapegoat and ignoring the puppet master. (firmly) This proposed team doesn't solve our problem; it validates the Minions' entire strategy from the last round. (with conviction) We cannot approve a team built on a foundation of misdirection. We have to reject this and re-evaluate who really benefited from that mission failing, not just who was holding the fail card."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 6,
+    "content": "Let's cut through the nonsense. (impatiently) The arguments from Players 4 and 5 are a desperate attempt to create chaos where there is none. (matter-of-factly) The math is simple and absolute. Mission 3 had two players we know are good from Mission 2's success\u2014Players 0 and 1. The third member was Player 4. That mission failed. Therefore, (with finality) Player 4 played the fail card. There is no 'frame job,' there is no 'puppet master,' (dismissively) there is only a minion who got caught.\n\n(accusingly) Player 5, you rejecting the last mission was not wisdom; it was you trying to avoid a test that could have exposed you. Now you are actively defending the person who we know, with mathematical certainty, just failed a mission. (challengingly) Why would a loyal servant defend a proven saboteur?\n\n(confidently) Player 3 has done exactly the right thing: build a team from the core of known good players. The team is [0, 1, 3], all of whom were on successful missions, and myself. This is our victory team. We approve this, we get our third success, and we win. (sternly) Anyone who rejects this is actively trying to lose the game for the loyal servants."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 0,
+    "content": "Let's be perfectly clear, because the minions are desperately trying to muddy the waters. (calmly, firmly) The facts are simple and absolute. Mission 3 had three members: myself, Player 1, and Player 4. Player 1 and I were on two successful missions before that. The mission failed. The only new variable was Player 4. Therefore, (with finality) Player 4 failed that mission.\n\n(matter-of-factly) The arguments from Player 4 and 5 are a textbook minion strategy: when you get caught by the numbers, you invent a confusing narrative about 'frame jobs' and 'puppet masters' to distract everyone from the simple truth. It's a smokescreen, and the fact that Player 5 is so quick to defend the one person we know is a saboteur is incredibly damning. (suspiciously) It strongly suggests they are working together. \n\n(confidently) Player 3 has proposed the winning team. It is built on the proven loyal core of myself, Player 1, and Player 3, and adds Player 6, who correctly identified the logical flaw in the minions' argument. This is it. This is the team that wins us the game. We approve this, we get our third success. (firmly) Do not fall for the chaos. Vote Approve."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 1,
+    "content": "The facts here are not complicated, and we should not allow them to be complicated by those who benefit from chaos. (calmly, reasonably) Players 0 and 6 have laid it out perfectly. The last mission had three members: myself, Player 0, and Player 4. Myself and Player 0 have been on a combined total of three successful missions. Player 4 has been on one mission, and it failed. (matter-of-factly) The math is simple, and the conclusion is inescapable: Player 4 is the saboteur. \n\n(dismissively) The argument that this was some kind of elaborate 'frame job' by Player 2 is a desperate and illogical fantasy. Let's not forget that nearly everyone, including myself, approved that mission specifically *because* it would give us this exact, clear result. We all agreed to the test. Now that the test has given us a definitive answer, we cannot back away from it. \n\n(accusingly) What is most damning is Player 5's behavior. He was the *only one* to reject that test mission, and is now the loudest voice defending the person we know is evil. That is not the behavior of a loyal servant. It is the behavior of a fellow minion protecting their exposed partner. \n\n(confidently) Player 3's proposal is the only logical path forward. It is built on the three players with a perfect mission record\u20140, 1, and 3\u2014and adds Player 6, whose logic has been sound. This is the winning team. Approve it, and we win."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 2,
+    "content": "Okay, (calmly, reasonably) let's calm down and think for a second, because the minions are one step away from winning by making us panic. Everyone is yelling that the math is simple and that Player 4 is evil. I agree. (thoughtfully) The math *is* simple. Player 4 failed that mission. I accept that. \n\n(with growing suspicion) But what happens next is what matters. Player 6, who has been on zero missions, is suddenly the loudest voice of reason and the final piece of this 'perfect' team?  Let's not forget, I was wrong about Mission 2. I voted reject on a team of [1, 0, 3] and it passed. I made a mistake as a loyal servant. But Player 6 was on the *right* side of that vote. They were right again about Player 4. (doubtfully) It's too perfect. It's too easy. (pointedly) The most effective way for a minion to hide is to stand at the front of the mob and point at the person everyone else is already pointing at. Player 6 has risked nothing, has never been on a mission, and is now being handed a free pass onto the game-winning team just for stating the obvious? (suspiciously) That feels less like sound logic and more like a clever minion getting a free ride to victory."
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "player_id": 3,
+    "content": "Leader 3 (Merlin) confirms team for voting: [0, 1, 3, 6] with reasoning: I have listened to the discussion, and it has only strengthened my conviction in this team. The attempt by Players 4 and 5 to create a confusing narrative about a 'frame job' is a desperate smokescreen, and the loyal members of this table have seen right through it."
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 3,
+    "content": "Leader (Player 3) automatically votes approve."
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 0,
+    "content": "Player 0 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 1,
+    "content": "Player 1 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 2,
+    "content": "Player 2 voted: reject"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 4,
+    "content": "Player 4 voted: reject"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 5,
+    "content": "Player 5 voted: reject"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 6,
+    "content": "Player 6 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "player_id": 3,
+    "content": "Player 3 voted: approve"
+  },
+  {
+    "event_type": "VOTE_RESULT",
+    "content": "Vote Result: 4 approved, 3 rejected. (with a slight pause) Team approved."
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "content": "Quest cards have been revealed: ['success', 'success', 'success', 'success']"
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "content": "There were 0 fail votes."
+  },
+  {
+    "event_type": "QUEST_RESULT",
+    "content": "Quest SUCCEEDED! (excitedly)"
+  },
+  {
+    "event_type": "GAME_OVER",
+    "content": "Good wins by succeeding 3 quests! (triumphantly)"
+  },
+  {
+    "event_type": "ASSASSINATION_PHASE",
+    "player_id": null,
+    "content": "--- The Final Assassination ---"
+  },
+  {
+    "event_type": "ROLE_ANNOUNCEMENT",
+    "player_id": 5,
+    "content": "The Minion (Player 5) will now propose a target."
+  },
+  {
+    "event_type": "TEAM_PROPOSAL",
+    "player_id": 5,
+    "content": "The Minion proposes to assassinate Player 3. Reasoning: We have to look at who guided the game, not just who was on successful missions. My prime suspect is Player 3."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": null,
+    "content": "The evil team will now discuss the proposal..."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 2,
+    "content": "I agree. (firmly) It has to be Player 3. (with a long pause) My entire game plan was to act like a confident, (beat) if slightly reckless, (beat) leader\u2014to mimic Merlin. (thoughtfully) The entire table was suspicious of me, (beat) but Player 3 wasn't just suspicious; (pointedly) they were *certain*. (angrily) They were the first and loudest voice to dismantle my proposal for Mission 2, (beat) leading the charge that got *them* onto that team instead of me! (spitting) That team succeeded. A normal servant would have been wary, (condescendingly) but Player 3 acted with the kind of absolute certainty (slowly) that only comes from *knowing* I was evil. (whispering) They guided the entire game from that single, pivotal moment. Players 0 and 1 were just solid good guys (dismissively) who were on the right teams. Player 6 was a latecomer. (coldly) Player 3 was the architect of our defeat."
+  },
+  {
+    "event_type": "PLAYER_SPEECH",
+    "player_id": 4,
+    "content": "I agree. (quickly) It's Player 3. Look back: (instructing) they weren't just right, they were right *first*. (with emphasis on 'first') They called out Player 2's strange logic on Mission 1 before anyone else. They led the charge to block Player 2's team on Mission 2. (matter-of-factly) Player 6 was loud at the end when the math was easy; Player 3 was the one setting up the board from the very beginning. (thoughtfully) They didn't just *play* the game, (beat) they *directed* it. (with conviction) That's Merlin."
+  },
+  {
+    "event_type": "ROLE_ANNOUNCEMENT",
+    "player_id": 5,
+    "content": "The Minion (Player 5) will now make the final decision."
+  },
+  {
+    "event_type": "ROLE_ANNOUNCEMENT",
+    "player_id": 5,
+    "content": "The Minion has made their final decision."
+  },
+  {
+    "event_type": "ASSASSINATION_PHASE",
+    "player_id": 5,
+    "content": "Final Target: Player 3. Reasoning: I've considered all the arguments. Players 0 and 1 were the vocal heroes, the public face of the good team. (beat) Their confidence after Mission 3 failed is easily explained: they were on the mission, knew they were good, and correctly deduced Player 4 was the fail. (calmly explaining) This doesn't require special knowledge, just being a loyal servant on that mission. They make for a perfect Percival and a trusted Servant, (deliberately) drawing all the attention."
+  },
+  {
+    "event_type": "GAME_OVER",
+    "player_id": null,
+    "content": "The Minion successfully assassinated Merlin! Evil wins!"
+  },
+  {
+    "event_type": "GAME_OVER",
+    "content": "Post-Game"
+  },
+  {
+    "event_type": "GAME_START",
+    "content": "Saving player contexts..."
+  },
+  {
+    "event_type": "GAME_START",
+    "content": "Player contexts saved to game_context.json"
+  },
+  {
+    "event_type": "GAME_START",
+    "content": "You can now talk to the players using: python3 talk_with_player.py <player_id>"
+  }
+]

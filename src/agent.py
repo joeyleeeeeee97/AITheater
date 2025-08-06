@@ -4,13 +4,14 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+import logging
 import os
-import google.generativeai as genai
-import time
-from google.api_core import exceptions
-import sys # Import sys module
-import logging # Add this line
+import sys
+from typing import Any, Dict, List, Optional, Union, Tuple
+import litellm
+
+# Add project root to sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # --- Protocol Definitions ---
 
@@ -92,82 +93,85 @@ class DiscussionAction:
     reasoning: Optional[str] = None
 
 @dataclass
+class MvpNominationAction:
+    statement: str
+    reasoning: str
+
+@dataclass
 class ActionResponsePayload:
     player_id: int
     action_type: str
-    action_data: Union[DiscussionAction, TeamProposalAction, VoteAction, QuestAction, AssassinationAction, AssassinationProposalAction, AssassinationDiscussionAction, Any]
+    action_data: Union[DiscussionAction, TeamProposalAction, VoteAction, QuestAction, AssassinationAction, AssassinationProposalAction, AssassinationDiscussionAction, MvpNominationAction, Any]
     llm_reasoning: Optional[str] = None
     response_time_ms: Optional[int] = None
 
-# --- LLM and Prompt Management ---
+# --- Unified LLM Client with Cost Tracking ---
 
-class RealLLMClient:
-    """A real LLM client."""
-    def __init__(self, role: str, game_rules: str, role_context: str):
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable not set.")
-        self.logger = logging.getLogger(__name__) # Add this line
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('models/gemini-2.5-pro', system_instruction=f"{game_rules}\n{role_context}\nYou are a player in The Resistance: Avalon. Your role is {role}.")
-        self.chat = self.model.start_chat(history=[])
+class UnifiedLLMClient:
+    """
+    A unified LLM client using LiteLLM to support multiple providers,
+    with built-in cost tracking.
+    """
+    def __init__(self, model: str, system_prompt: str):
+        self.model = model
+        self.system_prompt = system_prompt
+        self.total_cost = 0.0
+        self.logger = logging.getLogger("debug")
+        self.history = [] # To store conversation history for context
 
-    async def generate(self, prompt: str) -> str:
-        retries = 3
-        for i in range(retries):
-            try:
-                response = await self.chat.send_message_async(prompt)
-                return response.text
-            except (exceptions.ResourceExhausted, exceptions.InternalServerError) as e:
-                self.logger.debug(f"API Error ({type(e).__name__}). Retrying in {2**(i+1)} seconds...")
-                await asyncio.sleep(2**(i+1)) # Exponential backoff
-            except Exception as e:
-                self.logger.debug(f"An unexpected error occurred during LLM generation: {e}")
-                raise
-        raise Exception("LLM generation failed after multiple retries due to API issues.")
+    async def generate(self, prompt: str) -> Tuple[str, float]:
+        # Add user prompt to history
+        self.history.append({"role": "user", "content": prompt})
+        
+        messages = [{"role": "system", "content": self.system_prompt}] + self.history
+        
+        response_text = "Error: No response generated."
+        cost = 0.0
+        
+        try:
+            response = await litellm.acompletion(
+                model=self.model,
+                messages=messages
+            )
+            
+            response_text = response.choices[0].message.content
+            self.history.append({"role": "assistant", "content": response_text}) # Add model response to history
+            
+            cost = await litellm.completion_cost(completion_response=response)
+            self.total_cost += cost
+            
+        except Exception as e:
+            self.logger.error(f"LLM generation failed for model {self.model}: {e}")
+            response_text = f"I encountered an error and could not respond. (Error: {e})"
+            # Do not add failed responses to history
+
+        return response_text, float(cost)
+
+    def get_total_cost(self) -> float:
+        return self.total_cost
+
+# --- Mock LLM Client for Testing ---
 
 class MockLLMClient:
     """A mock LLM client for testing."""
-    def __init__(self, role: str, game_rules: str, role_context: str):
-        self.logger = logging.getLogger(__name__) # Add this line
-        self.role = role
-        self.game_rules = game_rules
-        self.role_context = role_context
-        self.history = [] # Simulate chat history
+    def __init__(self, model: str, system_prompt: str):
+        self.logger = logging.getLogger("debug")
+        self.role = "MockRole"
+        self.history = []
 
-    async def generate(self, prompt: str) -> str:
-        self.history.append({"role": "user", "parts": [prompt]}) # Add user prompt to history
-        self.logger.debug("--- Mock LLM Received Prompt ---")
-        self.logger.debug(f"Role: {self.role}")
-        self.logger.debug(f"{prompt}")
-        self.logger.debug("--------------------------------")
+    async def generate(self, prompt: str) -> Tuple[str, float]:
+        self.history.append({"role": "user", "parts": [prompt]})
+        self.logger.debug(f"--- Mock LLM Received Prompt (Role: {self.role}) ---\n{prompt}\n--------------------------------")
         
-        response_text = ""
-        if "PARTICIPATE_DISCUSSION" in prompt:
-            if self.role == "Merlin":
-                response_text = "I have seen the evil, but for the greater good, I must remain silent. I will guide us to victory."
-            elif self.role == "Assassin":
-                response_text = "Hello everyone. I hope for an exciting game. I will observe everyone's words and actions carefully."
-            else:
-                response_text = "Hello everyone, I am a player. I am happy to play with you all."
-        elif "PROPOSE_TEAM" in prompt:
-            response_text = 'Team: [0, 1]\nReasoning: I believe these two players are trustworthy.'
-        elif "VOTE_ON_TEAM" in prompt:
-            response_text = 'Vote: approve\nReasoning: I trust this team.'
-        elif "EXECUTE_QUEST" in prompt:
-            if self.role in ["Merlin", "Percival", "Servant"]:
-                response_text = 'Action: success\nReasoning: For Arthur!'
-            else:
-                response_text = 'Action: fail\nReasoning: For Mordred!'
-        elif "ASSASSINATION_DECISION" in prompt:
-            # Mock Assassin always targets player 0 (Merlin in our setup)
-            response_text = 'Target: 0\nReasoning: I suspect player 0 is Merlin based on their subtle hints.'
-        else:
-            response_text = "This is a general response."
+        response_text = "This is a mock response."
+        # Simplified mock logic
         
-        self.history.append({"role": "model", "parts": [response_text]}) # Add model response to history
-        await asyncio.sleep(0)
-        return response_text
+        self.history.append({"role": "model", "parts": [response_text]})
+        await asyncio.sleep(0.1)
+        return response_text, 0.0
+
+    def get_total_cost(self) -> float:
+        return 0.0
 
 class PromptManager:
     """Generates prompts based on game state."""
@@ -347,15 +351,32 @@ Analyze the entire game history. Look for players who seemed to have too much in
 Propose a target for assassination to your fellow Minions. Provide clear, evidence-based reasoning for your choice. Your teammates will see this and give their feedback.
 Available targets: {available_targets}.
 Format your response as:
-Target: player_id
-Reasoning: Your detailed explanation for why you believe this player is Merlin.
+reasoning: Your final, detailed explanation for your choice, taking into account your team's discussion.
+"""
+
+    def get_mvp_nomination_prompt(self, player_id: int, role: str, history_segment: str) -> str:
+        return self.cothought_prompt + f"""
+ACTION: NOMINATE_MVP
+Your Player ID is {player_id}. Your role was {role}. The game is now over.
+Review your memory of the entire game and reflect on the performance of all players.
+Based on your analysis, please provide a statement nominating one player for MVP.
+Explain your reasoning clearly, citing specific plays, votes, or deductions that impressed you.
+
+Format your response as:
+Statement: [Your nomination statement and detailed reasoning.]
+"""
+
+# --- RoleAgent Implementation ---
+
+class RoleAgent:
+    """An LLM-driven Avalon Agent that adheres to the protocol."""
 """
 
     def get_assassination_discussion_prompt(self, player_id: int, role: str, proposal_target: int, proposal_reasoning: str, history_segment: str) -> str:
         return self.cothought_prompt + f"""
 ACTION: ASSASSINATE_DISCUSSION
 Your Player ID is {player_id}. Your role is {role}. You are a Minion of Mordred, participating in the final assassination discussion.
-Your assassin has proposed targeting Player {proposal_target} for the following reason: \"{proposal_reasoning}\"
+Your assassin has proposed targeting Player {proposal_target} for the following reason: \"{proposal_reasoning}\" 
 Review the discussion history below, including the initial proposal and any comments from other teammates.
 **Discussion History:**
 {history_segment}
@@ -385,15 +406,15 @@ class RoleAgent:
     """An LLM-driven Avalon Agent that adheres to the protocol."""
 
     def __init__(self, player_id: int, llm_client_factory: Any):
-        self.logger = logging.getLogger(__name__) # Add this line
+        self.logger = logging.getLogger("debug")
         self.player_id = player_id
         self.role: Optional[str] = None
         self.game_id: Optional[str] = None
         self.known_info: Optional[str] = None
-        self.llm_client_factory = llm_client_factory # Receives a factory function
-        self.llm_client = None # Deferred initialization
+        self.llm_client_factory = llm_client_factory
+        self.llm_client = None
         self.prompt_manager = PromptManager()
-        self.known_history_index: int = 0 # Initialize known history index
+        self.known_history_index: int = 0
         self.logger.debug(f"Agent {self.player_id} created.")
 
     async def receive_message(self, message: BaseMessage) -> Optional[BaseMessage]:
@@ -410,49 +431,45 @@ class RoleAgent:
         self.role = payload.role
         self.known_info = payload.initial_personal_info.get("known_info", "You have no special knowledge.")
         
-        # Initialize LLM client here, passing role and game rules as system instructions
-        game_rules = payload.game_rules # Get game rules from payload
-        role_context = payload.role_context # Get role context from payload
-        self.llm_client = self.llm_client_factory(self.role, game_rules, role_context)
-        self.known_history_index = 0 # Reset for new game
+        system_prompt = f"{payload.game_rules}\n{payload.role_context}\nYou are a player in The Resistance: Avalon. Your role is {self.role}. "
+        self.llm_client = self.llm_client_factory(system_prompt=system_prompt)
+        self.known_history_index = 0
 
         self.logger.debug(f"Agent {self.player_id} ({self.role}) initialized. Known info: {self.known_info}")
 
     async def _handle_action_request(self, request_message: BaseMessage) -> BaseMessage:
         action_payload = request_message.payload
         response_payload = None
+        debug_logger = logging.getLogger("debug")
+
+        async def get_llm_response(prompt: str) -> str:
+            response_text, cost = await self.llm_client.generate(prompt)
+            debug_logger.debug(f"Player {self.player_id} ({self.role}) LLM call cost: ${cost:.6f}")
+            return response_text
 
         if action_payload.action_type == "PARTICIPATE_DISCUSSION":
             prompt = self.prompt_manager.get_discussion_prompt(self.player_id, self.known_info, action_payload.history_segment)
-            statement = await self.llm_client.generate(prompt)
+            statement = await get_llm_response(prompt)
             action_data = DiscussionAction(action_type="statement", statement=statement)
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
         elif action_payload.action_type == "PROPOSE_TEAM":
             prompt = self.prompt_manager.get_propose_team_prompt(self.player_id, action_payload.constraints['team_size'], action_payload.history_segment)
-            if action_payload.history_segment:
-                prompt += f"\n\nPrevious Game History:\n{action_payload.history_segment}"
-            response_str = await self.llm_client.generate(prompt)
+            response_str = await get_llm_response(prompt)
             
-            # Parse plain text response
             lines = response_str.strip().split('\n')
             team_line = next((line for line in lines if line.startswith("Team:")), None)
             reasoning_line = next((line for line in lines if line.startswith("Reasoning:")), None)
-
             team_members = []
             reasoning = ""
-
             if team_line:
-                team_members_str = team_line.replace("Team:", "").strip()
                 try:
-                    # Still need json.loads for list parsing, assuming LLM returns a valid list string
-                    team_members = json.loads(team_members_str) # This might still fail if LLM doesn't return a valid list string
+                    team_members_str = team_line.replace("Team:", "").strip()
+                    team_members = json.loads(team_members_str)
                 except json.JSONDecodeError:
-                    self.logger.debug(f"Warning: Could not parse team members from: {team_members_str}")
-                    team_members = [] # Fallback to empty list
+                    debug_logger.warning(f"Could not parse team members from: {team_members_str}")
             if reasoning_line:
                 reasoning = reasoning_line.replace("Reasoning:", "").strip()
-
             action_data = TeamProposalAction(team_members=team_members, reasoning=reasoning)
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
@@ -463,48 +480,38 @@ class RoleAgent:
                 action_payload.constraints['current_proposed_team'],
                 action_payload.history_segment
             )
-            response_str = await self.llm_client.generate(prompt)
+            response_str = await get_llm_response(prompt)
             
-            # Parse plain text response (same as PROPOSE_TEAM)
             lines = response_str.strip().split('\n')
             team_line = next((line for line in lines if line.startswith("Team:")), None)
             reasoning_line = next((line for line in lines if line.startswith("Reasoning:")), None)
-
             team_members = []
             reasoning = ""
-
             if team_line:
-                team_members_str = team_line.replace("Team:", "").strip()
                 try:
+                    team_members_str = team_line.replace("Team:", "").strip()
                     team_members = json.loads(team_members_str)
                 except json.JSONDecodeError:
-                    self.logger.debug(f"Warning: Could not parse team members from: {team_members_str}")
-                    team_members = action_payload.constraints.get('current_proposed_team', []) # Fallback to original team
+                    debug_logger.warning(f"Could not parse team members from: {team_members_str}")
+                    team_members = action_payload.constraints.get('current_proposed_team', [])
             if reasoning_line:
                 reasoning = reasoning_line.replace("Reasoning:", "").strip()
-
             action_data = TeamProposalAction(team_members=team_members, reasoning=reasoning)
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
         elif action_payload.action_type == "VOTE_ON_TEAM":
             prompt = self.prompt_manager.get_vote_prompt(self.player_id, action_payload.constraints['team'], action_payload.constraints['team_proposal_reasoning'])
-            if action_payload.history_segment:
-                prompt += f"\n\nPrevious Game History:\n{action_payload.history_segment}"
-            response_str = await self.llm_client.generate(prompt)
+            response_str = await get_llm_response(prompt)
             
-            # Parse plain text response
             lines = response_str.strip().split('\n')
             vote_line = next((line for line in lines if line.startswith("Vote:")), None)
             reasoning_line = next((line for line in lines if line.startswith("Reasoning:")), None)
-
-            vote = "reject" # Default to reject for safety
+            vote = "reject"
             reasoning = ""
-
             if vote_line:
                 vote = vote_line.replace("Vote:", "").strip()
             if reasoning_line:
                 reasoning = reasoning_line.replace("Reasoning:", "").strip()
-
             action_data = VoteAction(vote=vote, reasoning=reasoning)
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
@@ -516,28 +523,19 @@ class RoleAgent:
                 action_payload.constraints.get('team', []),
                 action_payload.constraints.get('fails_needed', 1)
             )
-            if action_payload.history_segment:
-                prompt += f"\n\nPrevious Game History:\n{action_payload.history_segment}"
-            response_str = await self.llm_client.generate(prompt)
+            response_str = await get_llm_response(prompt)
             
-            # Parse plain text response
             lines = response_str.strip().split('\n')
             action_line = next((line for line in lines if line.startswith("Action:")), None)
             reasoning_line = next((line for line in lines if line.startswith("Reasoning:")), None)
-
-            # Default to success for safety, especially for good roles.
             action = "success"
             reasoning = ""
-
             if action_line:
                 action = action_line.replace("Action:", "").strip()
             if reasoning_line:
                 reasoning = reasoning_line.replace("Reasoning:", "").strip()
-
-            # Good players must succeed
             if self.role not in {"Mordred", "Morgana", "Minion", "Oberon"}:
                 action = "success"
-
             action_data = QuestAction(action=action, reasoning=reasoning)
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
@@ -547,9 +545,7 @@ class RoleAgent:
                 self.role,
                 action_payload.available_options
             )
-            if action_payload.history_segment:
-                prompt += f"\n\nPrevious Game History:\n{action_payload.history_segment}"
-            response_str = await self.llm_client.generate(prompt)
+            response_str = await get_llm_response(prompt)
             
             lines = response_str.strip().split('\n')
             target_line = next((line for line in lines if line.startswith("Target:")), None)
@@ -560,10 +556,9 @@ class RoleAgent:
                 try:
                     target_player = int(target_line.replace("Target:", "").strip())
                 except ValueError:
-                    self.logger.debug(f"Warning: Could not parse target player from: {target_line}")
+                    debug_logger.warning(f"Could not parse target player from: {target_line}")
             if reasoning_line:
                 reasoning = reasoning_line.replace("Reasoning:", "").strip()
-
             action_data = AssassinationProposalAction(target_player=target_player, reasoning=reasoning)
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
@@ -575,7 +570,7 @@ class RoleAgent:
                 action_payload.constraints.get('proposal_reasoning'),
                 action_payload.history_segment
             )
-            response_str = await self.llm_client.generate(prompt)
+            response_str = await get_llm_response(prompt)
             
             lines = response_str.strip().split('\n')
             statement_line = next((line for line in lines if line.startswith("Statement:")), None)
@@ -586,7 +581,6 @@ class RoleAgent:
                 statement = statement_line.replace("Statement:", "").strip()
             if reasoning_line:
                 reasoning = reasoning_line.replace("Reasoning:", "").strip()
-
             action_data = AssassinationDiscussionAction(statement=statement, reasoning=reasoning)
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
@@ -597,25 +591,38 @@ class RoleAgent:
                 action_payload.available_options,
                 action_payload.history_segment
             )
-            response_str = await self.llm_client.generate(prompt)
+            response_str = await get_llm_response(prompt)
             
-            # Parse plain text response
             lines = response_str.strip().split('\n')
             target_line = next((line for line in lines if line.startswith("Target:")), None)
             reasoning_line = next((line for line in lines if line.startswith("Reasoning:")), None)
-
-            target_player = -1 # Default to invalid target
+            target_player = -1
             reasoning = ""
-
             if target_line:
                 try:
                     target_player = int(target_line.replace("Target:", "").strip())
                 except ValueError:
-                    self.logger.debug(f"Warning: Could not parse target player from: {target_line}")
+                    debug_logger.warning(f"Could not parse target player from: {target_line}")
             if reasoning_line:
                 reasoning = reasoning_line.replace("Reasoning:", "").strip()
-
             action_data = AssassinationAction(target_player=target_player, reasoning=reasoning)
+            response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
+
+        elif action_payload.action_type == "NOMINATE_MVP":
+            prompt = self.prompt_manager.get_mvp_nomination_prompt(
+                self.player_id,
+                self.role,
+                action_payload.history_segment
+            )
+            response_str = await get_llm_response(prompt)
+            
+            lines = response_str.strip().split('\n')
+            statement_line = next((line for line in lines if line.startswith("Statement:")), None)
+            statement = ""
+            if statement_line:
+                statement = statement_line.replace("Statement:", "").strip()
+            
+            action_data = MvpNominationAction(statement=statement, reasoning=response_str) # Store full response in reasoning
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
         return BaseMessage(

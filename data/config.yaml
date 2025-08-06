@@ -1,0 +1,18 @@
+# API keys are loaded from environment variables.
+# Ensure GEMINI_API_KEY is set in your environment.
+
+player_setup:
+  - player_id: 0
+    model: "gemini/gemini-1.5-pro-latest"
+  - player_id: 1
+    model: "gemini/gemini-1.5-pro-latest"
+  - player_id: 2
+    model: "gemini/gemini-1.5-pro-latest"
+  - player_id: 3
+    model: "gemini/gemini-1.5-pro-latest"
+  - player_id: 4
+    model: "gemini/gemini-1.5-pro-latest"
+  - player_id: 5
+    model: "gemini/gemini-1.5-pro-latest"
+  - player_id: 6
+    model: "gemini/gemini-1.5-pro-latest"
