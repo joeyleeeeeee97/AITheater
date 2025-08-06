@@ -189,6 +189,80 @@ class VideoGenerator:
         
         return clips
     
+    def _create_info_panel_clip(self, event: Dict[str, Any], duration: float) -> Optional[TextClip]:
+        """Creates the info panel clip with summary text for the event."""
+        summary_text = event.get("summary")
+        if not summary_text:
+            return None
+
+        try:
+            panel_cfg = self.layout.get("info_panel", {})
+            style_cfg = panel_cfg.get("system_message_style", {})
+            
+            position = panel_cfg.get("position", ["center", 550])
+            size = panel_cfg.get("size", [700, 300])
+            font_size = style_cfg.get("font_size", 32)
+            text_color = style_cfg.get("text_color", "#FFFFFF")
+
+            self.logger.info(f"Creating info panel: '{summary_text}'")
+
+            info_clip = TextClip(
+                text=summary_text,
+                font_size=font_size,
+                color=text_color,
+                size=size,
+                method='caption'
+            ).with_position(position).with_duration(duration)
+
+            return info_clip
+
+        except Exception as e:
+            self.logger.error(f"Failed to create info panel for summary '{summary_text}': {e}")
+            return None
+
+    def _create_quest_dashboard_clip(self, quest_history: List[Dict], duration: float) -> Optional[TextClip]:
+        """Creates the quest dashboard clip based on the current quest history."""
+        if not quest_history:
+            return None
+
+        try:
+            dash_cfg = self.layout.get("quest_dashboard", {})
+            position = dash_cfg.get("position", ["center", 10])
+            font_size = dash_cfg.get("font_size", 36)
+            text_color = dash_cfg.get("color", "#FFFFFF")
+            line_spacing = dash_cfg.get("line_spacing", 5)
+
+            dashboard_text = "Quest History:\n"
+            for quest in quest_history:
+                team_str = ", ".join(quest['team'])
+                status = quest.get('result', 'PROPOSED')
+                dashboard_text += f"Q{quest['quest_number']} (Team: {team_str}): {status}\n"
+
+            # Create a background for the dashboard
+            bg_color = dash_cfg.get("background_color", [0, 0, 0])
+            opacity = dash_cfg.get("opacity", 0.5)
+
+            text_clip = TextClip(
+                text=dashboard_text,
+                font_size=font_size,
+                color=text_color,
+                align='West',
+                size=(self.resolution[0] * 0.8, None), # 80% of width
+                method='caption'
+            )
+            
+            bg_size = (text_clip.size[0] + 40, text_clip.size[1] + 20)
+            background = ColorClip(size=bg_size, color=bg_color).with_opacity(opacity)
+            
+            dashboard_clip = CompositeVideoClip([background, text_clip.with_position("center")], size=bg_size)
+            dashboard_clip = dashboard_clip.with_position(position).with_duration(duration)
+
+            return dashboard_clip
+
+        except Exception as e:
+            self.logger.error(f"Failed to create quest dashboard: {e}")
+            return None
+
     def _create_model_tag(self, player_id: int, duration: float) -> Optional[TextClip]:
         """Create model name tag under player avatar."""
         try:
@@ -283,9 +357,21 @@ class VideoGenerator:
             # Process events and create clips with proper timing
             final_clips = []
             current_time_ms = 0
+            quest_history = []
             
             for i, event in enumerate(script_data):
                 try:
+                    # Update quest history based on events
+                    if event.get("event_type") == "TEAM_PROPOSAL":
+                        quest_history.append({
+                            "quest_number": len(quest_history) + 1,
+                            "team": event.get("team", []),
+                            "result": "PROPOSED"
+                        })
+                    elif event.get("event_type") == "QUEST_RESULT":
+                        if quest_history:
+                            quest_history[-1]["result"] = event.get("result", "UNKNOWN")
+
                     audio_info = metadata.get(i)
                     if not audio_info or audio_info.get("duration_ms", 0) <= 0:
                         continue
@@ -305,6 +391,11 @@ class VideoGenerator:
                     # Create base scene for this event
                     base_clip = self.asset_cache['background'].with_duration(duration_sec)
                     visual_layers = [base_clip]
+
+                    # Add quest dashboard
+                    dashboard_clip = self._create_quest_dashboard_clip(quest_history, duration_sec)
+                    if dashboard_clip:
+                        visual_layers.append(dashboard_clip)
                     
                     # Determine leader for this event
                     leader_id = self._determine_leader(event)
@@ -347,6 +438,11 @@ class VideoGenerator:
                     if subtitle_clips:
                         self.logger.info(f"Adding {len(subtitle_clips)} subtitle clips to visual layers for event {i}")
                         visual_layers.extend(subtitle_clips)
+
+                    # Add info panel for the event
+                    info_panel_clip = self._create_info_panel_clip(event, duration_sec)
+                    if info_panel_clip:
+                        visual_layers.append(info_panel_clip)
 
                     # Composite all layers
                     event_clip = CompositeVideoClip(visual_layers, size=self.resolution)
