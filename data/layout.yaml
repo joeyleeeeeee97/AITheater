@@ -51,10 +51,10 @@ avatar:
   border_width: 6
 
 speaker_tag: # The text shown above a speaking player
-  text: "SPEAKING"
+  text: "speaking"
   font_size: 36
   color: "#FFD700" # Gold, to match the border
-  offset_from_avatar: [-25, -75] # (x, y) offset from the avatar's top-left corner
+  offset_from_avatar: [25, -80] # (x, y) offset from the avatar's top-left corner
 
 player_tag: # The text showing the player's ID
   font_size: 36

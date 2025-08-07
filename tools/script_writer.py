@@ -52,24 +52,15 @@ You are an AI data processing service. Your sole function is to convert a raw ga
 
 **CRITICAL INSTRUCTIONS:**
 
-1.  **Unified Event Structure**: Convert every logical event into a JSON object. **ALL** events must include `event_type`, `summary`, `content`, `game_state`, and `quest_dashboard_state`.
-    *   Valid `event_type` values are: "GAME_START", "ROLE_ANNOUNCEMENT", "TEAM_PROPOSAL", "PLAYER_SPEECH", "VOTE_RESULT", "QUEST_RESULT", "ASSASSINATION_PHASE", "GAME_OVER", "PLAYER_ELIMINATED", "SCENE_START", "MVP_VOTING_START", "MVP_SPEECH", "MVP_RESULT".
-    *   `player_id` should be included where applicable.
-
-2.  **State Tracking**: You must track the `current_leader`, `proposed_team`, and the cumulative `quest_dashboard_state` as you process the log and include the correct state objects in **every** event.
-
-3.  **Narrative Content (`content`)**: For player speeches and narrator lines, inject parenthetical performance notes like `(dramatically)` or `(triumphantly)` to guide the tone.
-
-4.  **Specific Event Formatting**:
-    *   **`ROLE_ANNOUNCEMENT`**: Must contain a `role_map` object.
-    *   **`TEAM_PROPOSAL`**: Must include a `team` array of player IDs.
-    *   **`VOTE_RESULT`**: Must aggregate all votes into one event with `approve_votes` and `reject_votes` arrays.
-    *   **`QUEST_RESULT`**: Must include `quest_number`, `team`, and `result`.
+1.  **State Change Detection**: The `game_state` and `quest_dashboard_state` objects are **OPTIONAL**. You MUST ONLY include them in an event's JSON if their values have CHANGED in that event. For subsequent events where the state is the same, OMIT these keys.
+2.  **Narrative Content (`content`)**: For player speeches and narrator lines, inject parenthetical performance notes like `(dramatically)` or `(triumphantly)` to guide the tone.
+3.  **Specific Event Formatting**:
+    *   **`VOTE_RESULT`**: The `summary` MUST be in the format: "Approved: [player_ids] Rejected: [player_ids]". The `content` MUST narrate who voted which way.
 
 ---
 **HIGH-QUALITY EXAMPLES (Follow this format and quality):**
 
-*   **TEAM_PROPOSAL Event:**
+*   **Event 1: A leader proposes a team (State CHANGES)**
     ```json
     {{
       "event_type": "TEAM_PROPOSAL",
@@ -77,12 +68,21 @@ You are an AI data processing service. Your sole function is to convert a raw ga
       "team": [4, 0, 1],
       "summary": "Leader 4 proposes a team.",
       "content": "(decisively) As leader, I propose a team of players 4, 0, and 1.",
-      "game_state": {{ "current_leader": 4, "proposed_team": [4, 0, 1] }},
-      "quest_dashboard_state": []
+      "game_state": {{ "current_leader": 4, "proposed_team": [4, 0, 1] }}
     }}
     ```
 
-*   **QUEST_RESULT Event (after Quest 1 succeeded):**
+*   **Event 2: A player discusses the team (State does NOT change)**
+    ```json
+    {{
+      "event_type": "PLAYER_SPEECH",
+      "player_id": 5,
+      "summary": "Player 5 supports the team.",
+      "content": "(supportively) I agree with that team. It seems logical."
+    }}
+    ```
+
+*   **Event 3: A quest is completed (State CHANGES)**
     ```json
     {{
       "event_type": "QUEST_RESULT",
@@ -105,7 +105,7 @@ You are an AI data processing service. Your sole function is to convert a raw ga
 ---
 {chunk}
 ---
-""".strip()
+ """.strip()
     debug_logger.debug(f"REQUEST PAYLOAD for Chunk {chunk_index}:\n{prompt}")
 
     try:

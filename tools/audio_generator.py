@@ -22,24 +22,16 @@ else:
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Voice Mapping (The "Voice Actor Cast") ---
-# A curated list of high-quality, distinct voices for each player.
-VOICE_MAPPING = {
-    0: "en-US-Studio-O",      # A clear, professional female voice.
-    1: "en-US-WaveNet-D",     # A deep, mature male voice.
-    2: "en-US-WaveNet-F",     # A standard female voice.
-    3: "en-US-Neural2-I",     # A friendly, younger-sounding female voice.
-    4: "en-US-Studio-M",      # A deep, authoritative male voice (different from narrator).
-    5: "en-US-Neural2-A",     # A calm, standard male voice.
-    6: "en-US-WaveNet-B",     # A straightforward, standard male voice.
-    "NARRATOR": "en-US-Neural2-J" # Your specified female narrator voice.
-}
 
 class AudioGenerator:
     def __init__(self, config_path="data/layout.yaml"):
         print("Initializing Audio Generator...")
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
+        self.voice_mapping = self.config.get("voice_mapping", {})
+        if not self.voice_mapping:
+            logging.error("Voice mapping not found in config file. Aborting.")
+            raise ValueError("Voice mapping is missing from the layout configuration.")
 
     async def generate_audio_for_event(self, event: dict, index: int, client: texttospeech.TextToSpeechAsyncClient, output_dir: str) -> dict:
         """Generates a single audio file for any event with content."""
@@ -56,23 +48,20 @@ class AudioGenerator:
             logging.info(f"Skipping event {index} as it contains only performance notes or is empty.")
             return None
 
-        # Determine the voice to use from the config
-        voice_mapping = self.config.get("voice_mapping", {})
-        if not voice_mapping:
-            logging.error("Voice mapping not found in config file. Aborting.")
-            return None
-
-        if event_type == "PLAYER_SPEECH":
+        # Determine the voice to use based on the event type
+        player_id_events = ["PLAYER_SPEECH", "TEAM_PROPOSAL", "CONFIRM_TEAM", "MVP_SPEECH"]
+        
+        if event_type in player_id_events:
             player_id = event.get("player_id")
             if player_id is None:
-                logging.warning(f"Skipping PLAYER_SPEECH event {index} due to missing player_id.")
+                logging.warning(f"Skipping {event_type} event {index} due to missing player_id.")
                 return None
             # YAML keys are strings, so we convert player_id
-            voice_name = voice_mapping.get(str(player_id), "en-US-Standard-A")
+            voice_name = self.voice_mapping.get(str(player_id), "en-US-Standard-A")
             logging_name = f"Player {player_id}"
         else:
             player_id = "NARRATOR" # For metadata purposes
-            voice_name = voice_mapping.get("NARRATOR", "en-US-Standard-A")
+            voice_name = self.voice_mapping.get("NARRATOR", "en-US-Standard-A")
             logging_name = "Narrator"
 
         output_filename = f"event_{index:03d}.mp3"

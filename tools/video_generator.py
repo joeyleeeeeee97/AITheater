@@ -66,6 +66,8 @@ class FastTextRenderer:
         if cache_key in self.text_cache:
             return self.text_cache[cache_key].copy()
         
+        font = self.get_font(font_size)
+        
         # 创建背景
         bg_alpha = int(opacity * 255)
         if bg_color:
@@ -75,31 +77,34 @@ class FastTextRenderer:
 
         if size:
             img = Image.new('RGBA', size, final_bg_color)
-        else:
-            # 自动计算大小
-            font = self.get_font(font_size)
-            bbox = font.getbbox(text)
-            width = bbox[2] - bbox[0] + 20
-            height = bbox[3] - bbox[1] + 10
-            img = Image.new('RGBA', (width, height), final_bg_color)
-        
-        draw = ImageDraw.Draw(img)
-        font = self.get_font(font_size)
-        
-        # 绘制文字（居中）
-        if size:
+            draw = ImageDraw.Draw(img)
+            # For fixed-size canvas, center the text
             bbox = draw.textbbox((0, 0), text, font=font)
             text_width = bbox[2] - bbox[0]
             text_height = bbox[3] - bbox[1]
-            x = (size[0] - text_width) // 2
-            y = (size[1] - text_height) // 2
+            draw_x = (size[0] - text_width) / 2 - bbox[0]
+            draw_y = (size[1] - text_height) / 2 - bbox[1]
         else:
-            x, y = 10, 5
-        
+            # For auto-sized canvas, calculate the exact size needed
+            bbox = ImageDraw.Draw(Image.new('RGBA', (1,1))).textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            
+            padding = 10
+            canvas_width = text_width + padding * 2
+            canvas_height = text_height + padding * 2
+            
+            img = Image.new('RGBA', (canvas_width, canvas_height), final_bg_color)
+            draw = ImageDraw.Draw(img)
+            
+            # Draw at a position that accounts for the bounding box's internal offset
+            draw_x = padding - bbox[0]
+            draw_y = padding - bbox[1]
+
         # 绘制阴影
-        draw.text((x + 2, y + 2), text, fill=(0, 0, 0, 128), font=font)
+        draw.text((draw_x + 2, draw_y + 2), text, fill=(0, 0, 0, 128), font=font)
         # 绘制文字
-        draw.text((x, y), text, fill=color, font=font)
+        draw.text((draw_x, draw_y), text, fill=color, font=font)
         
         # 转换为 numpy 数组
         result = np.array(img)
@@ -177,7 +182,9 @@ class OpenCVFrameCompositor:
                     )
     
     def create_frame(self, event: Dict, subtitle_text: str = "",
-                    info_text: str = "") -> np.ndarray:
+                    info_text: str = "", current_leader: Optional[int] = None,
+                    proposed_team: Optional[List[int]] = None,
+                    dashboard_state: Optional[List[Dict]] = None) -> np.ndarray:
         """创建单帧 - 纯 OpenCV 操作，极速"""
         # 复制背景（BGR格式）
         frame = self.asset_cache['background'].copy()
@@ -187,12 +194,8 @@ class OpenCVFrameCompositor:
         avatar_cfg = self.layout.get("avatar", {})
         avatar_size = tuple(avatar_cfg.get("size", [75, 75]))
         
-        # 获取当前状态 from the structured event data
-        game_state = event.get("game_state", {})
+        # 获取说话的玩家
         speaking_player = self._get_speaking_player(event)
-        current_leader = game_state.get("current_leader")
-        proposed_team = game_state.get("proposed_team")
-        dashboard_state = event.get("quest_dashboard_state", [])
         
         # 绘制仪表盘
         self._draw_quest_dashboard(frame, dashboard_state)
@@ -287,29 +290,23 @@ class OpenCVFrameCompositor:
         cv2.rectangle(frame, (x, y), (x + w, y + h), border_color_bgr, thickness=-1)
     
     def _draw_speaker_tag(self, frame: np.ndarray, position: List[int]):
-        """Draws the 'SPEAKING' tag above the avatar."""
+        """Draws the 'SPEAKING' tag above the avatar using the same logic as player labels."""
         tag_cfg = self.layout.get("speaker_tag", {})
         text = tag_cfg.get("text", "SPEAKING")
         font_size = tag_cfg.get("font_size", 46)
         color = tag_cfg.get("color", "#FFD700")
-        offset = tag_cfg.get("offset_from_avatar", [-45, -65])
+        offset = tag_cfg.get("offset_from_avatar", [-45, -65]) # Using the specific offset for this tag
 
-        # Render the text using the high-quality text renderer
+        # Render the text
         text_img = self.text_renderer.render_text(text, font_size, color)
-
-        # Calculate the top-left position based on the avatar's center and the offset
         text_h, text_w = text_img.shape[:2]
-        # The offset in the config is from the avatar's top-left, so we first find the avatar's top-left
-        avatar_size = self.layout.get("avatar", {}).get("size", [75, 75])
-        avatar_top_left_x = position[0] - avatar_size[0] // 2
-        avatar_top_left_y = position[1] - avatar_size[1] // 2
-        
-        # Now apply the offset
-        overlay_x = avatar_top_left_x + offset[0]
-        overlay_y = avatar_top_left_y + offset[1]
 
-        # Overlay the rendered text image onto the frame
-        self._overlay_image(frame, text_img, [overlay_x + text_w // 2, overlay_y + text_h // 2])
+        # Calculate the text's absolute center position using the avatar's center and the offset
+        text_center_x = position[0] + offset[0]
+        text_center_y = position[1] + offset[1]
+        
+        # Overlay the image using its calculated center
+        self._overlay_image(frame, text_img, [text_center_x, text_center_y])
 
     def _draw_player_label(self, frame: np.ndarray, player_id: int,
                           position: List[int], avatar_size: Tuple[int, int], is_leader: bool):
@@ -617,8 +614,20 @@ class OpenCVVideoGenerator:
             audio_files = []
             current_time_ms = 0
             
+            # 持久化状态
+            last_known_leader = None
+            last_known_proposed_team = None
+            last_known_dashboard_state = []
+
             # 处理每个事件
             for event_idx, event in enumerate(script_data):
+                # 更新状态
+                if "game_state" in event:
+                    last_known_leader = event["game_state"].get("current_leader")
+                    last_known_proposed_team = event["game_state"].get("proposed_team")
+                if "quest_dashboard_state" in event:
+                    last_known_dashboard_state = event["quest_dashboard_state"]
+
                 # 获取事件元数据
                 event_meta = metadata.get(event_idx)
                 if not event_meta or event_meta.get("duration_ms", 0) <= 0:
@@ -654,7 +663,10 @@ class OpenCVVideoGenerator:
                     
                     # 创建帧
                     frame = self.compositor.create_frame(
-                        event, subtitle_text, info_text
+                        event, subtitle_text, info_text,
+                        current_leader=last_known_leader,
+                        proposed_team=last_known_proposed_team,
+                        dashboard_state=last_known_dashboard_state
                     )
                     
                     # 写入帧
