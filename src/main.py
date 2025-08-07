@@ -41,7 +41,7 @@ def run_step(command: list, step_name: str):
                 print(line, end='', flush=True)
         
         # Wait for the process to finish and get the exit code
-        process.wait()
+        process.wait() 
         
         # Final check on the return code
         if process.returncode != 0:
@@ -62,7 +62,7 @@ def run_step(command: list, step_name: str):
         return False
 
 
-def main(input_log_file: str, output_video_file: str):
+def main(input_log_file: str, output_video_file: str, stt_engine: str = 'google'):
     """Runs the full video generation pipeline."""
     
     # --- Path Setup ---
@@ -108,7 +108,8 @@ def main(input_log_file: str, output_video_file: str):
     cmd_subtitle = [
         PYTHON_EXEC, "tools/subtitle_generator.py",
         metadata_file,
-        subtitle_file
+        subtitle_file,
+        "--stt_engine", stt_engine
     ]
     if not run_step(cmd_subtitle, "Subtitle Generation"):
         return
@@ -133,6 +134,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="One-click script to run the entire AI Theater video generation pipeline.")
     parser.add_argument("input_log", help="Path to the input game log file (e.g., outputs/game_output.log).")
     parser.add_argument("output_video", nargs='?', help="Path for the final output video file (e.g., outputs/final_video.mp4).")
+    parser.add_argument("--stt_engine", default="google", choices=["google", "whisper"], help="The STT engine to use for generating subtitles.")
     args = parser.parse_args()
 
     # If output_video is not provided, create a default name
@@ -148,4 +150,4 @@ if __name__ == "__main__":
     # Also ensure the input log path is absolute
     absolute_input_log = os.path.abspath(args.input_log)
 
-    main(absolute_input_log, final_output_path)
+    main(absolute_input_log, final_output_path, args.stt_engine)

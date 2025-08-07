@@ -1,6 +1,7 @@
-"OpenCV 超高速视频生成器 for M1 Mac
+"""
+OpenCV 超高速视频生成器 for M1 Mac
 10倍速度提升，保持所有原有配置和数据结构
-"
+"""
 
 import os
 import sys
@@ -257,11 +258,13 @@ class OpenCVFrameCompositor:
         
         # 如果有 alpha 通道，进行混合
         if overlay.shape[2] == 4:
-            alpha = overlay_roi[:, :, 3] / 255.0
+            # Convert RGBA from PIL to BGRA for OpenCV
+            overlay_bgra = cv2.cvtColor(overlay_roi, cv2.COLOR_RGBA2BGRA)
+            alpha = overlay_bgra[:, :, 3] / 255.0
             alpha = np.expand_dims(alpha, axis=2)
             
             # 混合
-            roi[:] = (1 - alpha) * roi + alpha * overlay_roi[:, :, :3]
+            roi[:] = (1 - alpha) * roi + alpha * overlay_bgra[:, :, :3]
         else:
             roi[:] = overlay_roi
     
@@ -269,28 +272,19 @@ class OpenCVFrameCompositor:
                              avatar_size: Tuple[int, int], avatar_cfg: Dict):
         """绘制说话者边框 - OpenCV 原生绘制"""
         border_width = avatar_cfg.get("border_width", 6)
-        border_color = avatar_cfg.get("border_color_speaking", [255, 215, 0])
+        border_color = avatar_cfg.get("border_color_speaking", [255, 215, 0]) # Gold
         
         # BGR 格式
         border_color_bgr = (border_color[2], border_color[1], border_color[0])
         
         # 计算边框位置
-        x = position[0] - avatar_size[0] // 2 - border_width
-        y = position[1] - avatar_size[1] // 2 - border_width
-        w = avatar_size[0] + 2 * border_width
-        h = avatar_size[1] + 2 * border_width
+        x = position[0] - (avatar_size[0] // 2) - border_width
+        y = position[1] - (avatar_size[1] // 2) - border_width
+        w = avatar_size[0] + (2 * border_width)
+        h = avatar_size[1] + (2 * border_width)
         
         # 绘制实心矩形作为边框
-        cv2.rectangle(frame, (x, y), (x + w, y + h),
-                     border_color_bgr, thickness=-1)
-        
-        # 中间挖空（用背景色填充）
-        inner_x = x + border_width
-        inner_y = y + border_width
-        inner_w = avatar_size[0]
-        inner_h = avatar_size[1]
-        
-        # 这里我们不挖空，让头像覆盖
+        cv2.rectangle(frame, (x, y), (x + w, y + h), border_color_bgr, thickness=-1)
     
     def _draw_speaker_tag(self, frame: np.ndarray, position: List[int]):
         """Draws the 'SPEAKING' tag above the avatar."""

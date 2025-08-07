@@ -43,22 +43,63 @@ async def process_chunk(chunk: str, model: genai.GenerativeModel, chunk_index: i
     debug_logger.info(f"--- Processing Chunk {chunk_index} ---")
     
     prompt = f"""
-You are a professional screenwriter and audio drama director. Your task is to convert a raw text log from a game of "The Resistance: Avalon" into a structured JSON script. You MUST adhere strictly to the JSON protocol provided.
+You are an AI data processing service. Your sole function is to convert a raw game log into a perfectly structured JSON output. You MUST adhere strictly to the JSON protocol provided. Any deviation will cause a system failure.
 
 **JSON SCRIPTING PROTOCOL:**
 ---
 {protocol}
 ---
 
-**ADDITIONAL INSTRUCTIONS:**
+**CRITICAL INSTRUCTIONS:**
 
-1.  **Analyze the Log Chunk:** Read the provided game log chunk and identify all distinct events.
-2.  **Track State:** Keep track of the `current_leader`, `proposed_team`, and the cumulative `quest_dashboard_state` as you process the log.
-3.  **Generate JSON:** For each event, create a JSON object that strictly follows the protocol. Ensure `game_state` and `quest_dashboard_state` are present and accurate for **every single event**.
-4.  **Create Narrative:** Write compelling, narrative `content` for a voice actor, adding parenthetical performance notes like `(dramatically)` or `(triumphantly)`.
-5.  **Summarize:** Write a concise `summary` for each event.
+1.  **Unified Event Structure**: Convert every logical event into a JSON object. **ALL** events must include `event_type`, `summary`, `content`, `game_state`, and `quest_dashboard_state`.
+    *   Valid `event_type` values are: "GAME_START", "ROLE_ANNOUNCEMENT", "TEAM_PROPOSAL", "PLAYER_SPEECH", "VOTE_RESULT", "QUEST_RESULT", "ASSASSINATION_PHASE", "GAME_OVER", "PLAYER_ELIMINATED", "SCENE_START", "MVP_VOTING_START", "MVP_SPEECH", "MVP_RESULT".
+    *   `player_id` should be included where applicable.
 
-Your entire output for the chunk must be a single, valid JSON array of event objects.
+2.  **State Tracking**: You must track the `current_leader`, `proposed_team`, and the cumulative `quest_dashboard_state` as you process the log and include the correct state objects in **every** event.
+
+3.  **Narrative Content (`content`)**: For player speeches and narrator lines, inject parenthetical performance notes like `(dramatically)` or `(triumphantly)` to guide the tone.
+
+4.  **Specific Event Formatting**:
+    *   **`ROLE_ANNOUNCEMENT`**: Must contain a `role_map` object.
+    *   **`TEAM_PROPOSAL`**: Must include a `team` array of player IDs.
+    *   **`VOTE_RESULT`**: Must aggregate all votes into one event with `approve_votes` and `reject_votes` arrays.
+    *   **`QUEST_RESULT`**: Must include `quest_number`, `team`, and `result`.
+
+---
+**HIGH-QUALITY EXAMPLES (Follow this format and quality):**
+
+*   **TEAM_PROPOSAL Event:**
+    ```json
+    {{
+      "event_type": "TEAM_PROPOSAL",
+      "player_id": 4,
+      "team": [4, 0, 1],
+      "summary": "Leader 4 proposes a team.",
+      "content": "(decisively) As leader, I propose a team of players 4, 0, and 1.",
+      "game_state": {{ "current_leader": 4, "proposed_team": [4, 0, 1] }},
+      "quest_dashboard_state": []
+    }}
+    ```
+
+*   **QUEST_RESULT Event (after Quest 1 succeeded):**
+    ```json
+    {{
+      "event_type": "QUEST_RESULT",
+      "quest_number": 1,
+      "team": [0, 6],
+      "result": "SUCCESS",
+      "summary": "Quest 1 succeeded.",
+      "content": "(triumphantly) The results are in for the first quest. It is a success!",
+      "game_state": {{ "current_leader": 1, "proposed_team": null }},
+      "quest_dashboard_state": [
+        {{ "quest_number": 1, "team": [0, 6], "result": "SUCCESS" }}
+      ]
+    }}
+    ```
+---
+
+**Final Review Mandate:** Before outputting your response, perform a final validation pass on the entire JSON array you have generated. Ensure every object strictly adheres to all rules and examples provided. Your final output must be only the validated JSON.
 
 **GAME LOG CHUNK TO ADAPT:**
 ---
@@ -100,9 +141,9 @@ async def create_script_from_log(log_file_path: str, output_file_path: str, prot
         return
 
     # Validate that the log file is complete before proceeding
-    if "--- Post-Game ---" not in game_log:
-        script_logger.error("Log file appears to be incomplete. Missing '--- Post-Game ---' marker. Aborting script generation.")
-        return
+    # if "--- Post-Game ---" not in game_log:
+    #     script_logger.error("Log file appears to be incomplete. Missing '--- Post-Game ---' marker. Aborting script generation.")
+    #     return
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:

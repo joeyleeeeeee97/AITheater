@@ -38,7 +38,7 @@ def _validate_transcription(original_text: str, transcribed_words: List[str]) ->
     match_ratio = matched_words / len(transcribed_words)
     if match_ratio < 0.5:
         logging.warning(f"Validation failed. Match ratio: {match_ratio:.2f}. "
-                        f"Original: '{original_text}', Transcribed: '{" ".join(transcribed_words)}'")
+                        f"Original: '{original_text}', Transcribed: '{" ".join(transcribed_words)}"'")
         return False
     return True
 
@@ -84,6 +84,43 @@ def _get_word_level_timestamps_whisper(audio_path: str, text: str, max_retries: 
     logging.error(f"All {max_retries + 1} attempts failed for {os.path.basename(audio_path)}.")
     return []
 
+def _get_word_level_timestamps_google(audio_path: str, text: str) -> List[Dict[str, Any]]:
+    """Use Google Cloud Speech-to-Text for word-level timestamps."""
+    try:
+        from google.cloud import speech
+    except ImportError:
+        logging.error("Google Cloud Speech-to-Text library not found. Please run: pip install google-cloud-speech")
+        return []
+
+    client = speech.SpeechClient()
+
+    with open(audio_path, "rb") as audio_file:
+        content = audio_file.read()
+
+    audio = speech.RecognitionAudio(content=content)
+    config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+        sample_rate_hertz=16000,
+        language_code="en-US",
+        enable_word_time_offsets=True,
+    )
+
+    try:
+        response = client.recognize(config=config, audio=audio)
+        word_timings = []
+        for result in response.results:
+            for word_info in result.alternatives[0].words:
+                word_timings.append({
+                    "word": word_info.word,
+                    "start_ms": word_info.start_time.total_seconds() * 1000,
+                    "end_ms": word_info.end_time.total_seconds() * 1000,
+                })
+        return word_timings
+    except Exception as e:
+        logging.error(f"Google STT transcription for {os.path.basename(audio_path)} failed: {e}")
+        return []
+
+
 def _create_subtitle_chunks(word_timings: List[Dict[str, Any]], max_words_per_chunk: int = 6) -> List[Dict[str, Any]]:
     """Group words into subtitle chunks."""
     if not word_timings: return []
@@ -106,8 +143,8 @@ def _create_subtitle_chunks(word_timings: List[Dict[str, Any]], max_words_per_ch
             if not is_last: chunk_start_ms = word_timings[i + 1]["start_ms"]
     return chunks
 
-def generate_precise_subtitles(metadata_file: str, subtitle_file: str):
-    """Generates precise subtitles using a single-process, robust faster-whisper implementation."""
+def generate_precise_subtitles(metadata_file: str, subtitle_file: str, stt_engine: str = 'google'):
+    """Generates precise subtitles using a specified STT engine."""
     logging.info(f"Reading audio metadata from: {metadata_file}")
     try:
         with open(metadata_file, 'r', encoding='utf-8') as f:
@@ -116,10 +153,11 @@ def generate_precise_subtitles(metadata_file: str, subtitle_file: str):
         logging.error(f"Failed to read or parse metadata file: {e}")
         return
 
-    load_whisper_model()
-    if WHISPER_MODEL == "UNAVAILABLE":
-        logging.error("Cannot proceed with subtitle generation as Whisper model failed to load.")
-        return
+    if stt_engine == 'whisper':
+        load_whisper_model()
+        if WHISPER_MODEL == "UNAVAILABLE":
+            logging.error("Cannot proceed with subtitle generation as Whisper model failed to load.")
+            return
 
     all_subtitles = []
     current_time_ms = 0
@@ -130,9 +168,15 @@ def generate_precise_subtitles(metadata_file: str, subtitle_file: str):
         event_index = item.get("event_index")
 
         if text and duration_ms > 0 and os.path.exists(audio_path):
-            logging.info(f"Processing event {event_index} with faster-whisper...")
-            word_timings = _get_word_level_timestamps_whisper(audio_path, text)
-            
+            logging.info(f"Processing event {event_index} with {stt_engine}...")
+            if stt_engine == 'google':
+                word_timings = _get_word_level_timestamps_google(audio_path, text)
+            elif stt_engine == 'whisper':
+                word_timings = _get_word_level_timestamps_whisper(audio_path, text)
+            else:
+                logging.error(f"Unsupported STT engine: {stt_engine}")
+                word_timings = []
+
             if word_timings:
                 for timing in word_timings:
                     timing["start_ms"] += current_time_ms
@@ -148,7 +192,7 @@ def generate_precise_subtitles(metadata_file: str, subtitle_file: str):
                         "end_ms": chunk["end_ms"],
                         "text": chunk["text"],
                         "word_count": len(chunk["text"].split()),
-                        "source": "faster-whisper-medium"
+                        "source": f"{stt_engine}-stt"
                     })
             else:
                 logging.warning(f"No subtitles generated for event {event_index}.")
@@ -169,9 +213,10 @@ def generate_precise_subtitles(metadata_file: str, subtitle_file: str):
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="Generate subtitles using faster-whisper.")
+    parser = argparse.ArgumentParser(description="Generate subtitles using a specified STT engine.")
     parser.add_argument("metadata_file", help="Path to the input audio metadata JSON file.")
     parser.add_argument("subtitle_file", help="Path for the output subtitle JSON file.")
+    parser.add_argument("--stt_engine", default="google", choices=["google", "whisper"], help="The STT engine to use for generating subtitles.")
     args = parser.parse_args()
 
-    generate_precise_subtitles(args.metadata_file, args.subtitle_file)
+    generate_precise_subtitles(args.metadata_file, args.subtitle_file, args.stt_engine)

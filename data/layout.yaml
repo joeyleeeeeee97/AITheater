@@ -52,9 +52,9 @@ avatar:
 
 speaker_tag: # The text shown above a speaking player
   text: "SPEAKING"
-  font_size: 46
+  font_size: 36
   color: "#FFD700" # Gold, to match the border
-  offset_from_avatar: [-45, -65] # (x, y) offset from the avatar's top-left corner
+  offset_from_avatar: [-25, -75] # (x, y) offset from the avatar's top-left corner
 
 player_tag: # The text showing the player's ID
   font_size: 36
@@ -63,15 +63,15 @@ player_tag: # The text showing the player's ID
   offset_from_avatar: [0, 95] # (x, y) offset from the avatar's center
 
 leader_tag: # The tag for the current round's leader
-  font_size: 28
+  font_size: 36
   color: "#FF4136" # Red
   format: "Leader - Player {player_id}"
   offset_from_avatar: [-50, 95] # Same as normal ID tag for replacement
 
 proposed_team: # The text showing the team proposed by the leader
-  font_size: 28 # Match the leader_tag font size
+  font_size: 36 # Match the leader_tag font size
   color: "#FF4136" # Red
-  offset_from_leader_avatar: [0, 120] # (x, y) offset from the LEADER's avatar center, below the name
+  offset_from_leader_avatar: [0, 130] # (x, y) offset from the LEADER's avatar center, below the name
 
 quest_dashboard:
   position: ["center", 10] # (x, y) from top-left. "center" is supported for x.
@@ -82,24 +82,24 @@ quest_dashboard:
   opacity: 0.5 # Semi-transparent background for readability
 
 info_panel: # The multi-purpose information panel at the bottom
-  position: ["center", 550] # Horizontally centered, 980px from the top
+  position: ["center", 450] # Horizontally centered, 980px from the top
   size: [700, 300] # don't modify this Width, Height
   background_color: [0, 0, 0] # Black
-  opacity: 0.7 # Panel itself is visible
+  opacity: 0 # Panel itself is transparent
   
   system_message_style:
     font_size: 32
     text_color: "#FFFFFF" # White color for system messages
     text_alignment: "center"
     background_color: [0, 0, 0] # Black background for the text itself
-    opacity: 0.6 # Semi-transparent background for readability
+    opacity: 0 # Semi-transparent background for readability
 
   player_summary_style:
     font_size: 32
     text_color: "#FFFFFF" # White
     text_alignment: "center"
     background_color: [0, 0, 0] # Black background for the text itself
-    opacity: 0.6 # Semi-transparent background for readability
+    opacity: 0 # Semi-transparent background for readability
 
 subtitle_area:
   position: ["center", 950] # Horizontally centered, 950px from the top
@@ -108,7 +108,7 @@ subtitle_area:
   text_color: "white"
   text_alignment: "center"
   background_color: [0, 0, 0]
-  opacity: 0
+  opacity: 0.7
 
 # --- Voice Actor & Audio Configuration ---
 voice_mapping:
