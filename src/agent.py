@@ -21,6 +21,7 @@ class MessageType(Enum):
     ACTION_REQUEST = "action_request"
     GAME_END = "game_end"
     ACTION_RESPONSE = "action_response"
+    GAME_STATE_UPDATE = "game_state_update"
     READY_SIGNAL = "ready_signal"
     ERROR_REPORT = "error_report"
     HEARTBEAT = "heartbeat"

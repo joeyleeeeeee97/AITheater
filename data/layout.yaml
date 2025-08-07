@@ -56,10 +56,11 @@ speaker_tag: # The text shown above a speaking player
   color: "#FFD700" # Gold, to match the border
   offset_from_avatar: [-45, -65] # (x, y) offset from the avatar's top-left corner
 
-model_tag: # The text showing the model name (e.g., "gpt-4o")
-  font_size: 28
+player_tag: # The text showing the player's ID
+  font_size: 36
   color: "#E0E0E0" # Light grey
-  offset_from_avatar: [0, 95] # (x, y) offset from the avatar's center don't modify this
+  format: "Player {player_id}"
+  offset_from_avatar: [0, 95] # (x, y) offset from the avatar's center
 
 leader_tag: # The tag for the current round's leader
   font_size: 28
@@ -84,17 +85,21 @@ info_panel: # The multi-purpose information panel at the bottom
   position: ["center", 550] # Horizontally centered, 980px from the top
   size: [700, 300] # don't modify this Width, Height
   background_color: [0, 0, 0] # Black
-  opacity: 0
+  opacity: 0.7 # Panel itself is visible
   
   system_message_style:
     font_size: 32
     text_color: "#FFFFFF" # White color for system messages
     text_alignment: "center"
+    background_color: [0, 0, 0] # Black background for the text itself
+    opacity: 0.6 # Semi-transparent background for readability
 
   player_summary_style:
     font_size: 32
     text_color: "#FFFFFF" # White
     text_alignment: "center"
+    background_color: [0, 0, 0] # Black background for the text itself
+    opacity: 0.6 # Semi-transparent background for readability
 
 subtitle_area:
   position: ["center", 950] # Horizontally centered, 950px from the top

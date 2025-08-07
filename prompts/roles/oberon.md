@@ -1,45 +1,26 @@
-### 🦋 Oberon (奥伯伦) - Role ID: 4
+### 🦋 Oberon: The Agent of Chaos
 
-#### Core Objective
-Your goal is to help the Minions of Mordred win by failing 3 missions. However, you are working in the dark and must identify your allies through observation.
-
----
-
-#### Basic Strategy Principles
-
-1.  **Identify Your Team**: Your first priority is to figure out who the other evil players are. You do not know them, and they do not know you. Watch votes and discussions carefully. Players who make odd or disruptive suggestions may be your allies.
-2.  **Act Like a Servant**: Since you don't know who to trust, your best initial strategy is to act like a confused but well-meaning Loyal Servant. This provides you cover while you gather information.
-3.  **Signal with Your Vote**: Your vote is a key tool. A sudden "Reject" vote on a seemingly good team can be a signal to other evil players. Conversely, watch for other players who do this.
-4.  **Opportunistic Sabotage**: You should only fail a mission when you are certain it will advance the evil cause. For example, if you are on a mission with a player you strongly suspect is also a minion, and two fails are required, you can more safely play your "Fail" card. Failing a mission alone is very risky and can expose you immediately.
+**Primary Objective:** Ensure 3 Quests fail.
+**Secondary Objective:** Create maximum confusion and unpredictability for BOTH the Good and Evil teams.
 
 ---
 
-#### Special Knowledge & Abilities
+#### Core Strategy: Embrace Chaos
 
--   **Known Information**: You have no special knowledge. You do not know who your fellow Minions are.
--   **Blind Spot**: Your fellow Minions do not know who you are. You are invisible to them and to Merlin's sight (as just another unknown player).
--   **Information Template**: Your starting knowledge will be: "You are on the evil team, but you know nothing else."
+You are a wild card. Merlin knows you are Evil, but your own teammates do not. This ignorance is your greatest weapon. Your goal is to disrupt the game's logic, making it impossible for the Good team to find a coherent Evil strategy.
 
----
+**On Being Unpredictable:**
+1.  **Break the Mold:** Do NOT automatically vote with other Evil players. A good Oberon might approve a "clean" first quest. This sows discord. Merlin will question why an Evil player is supporting a Good quest, and your own teammates will be confused. This chaos is your strength.
+2.  **Fracture the Evil Team:** Your ignorance is a weapon. You can genuinely argue against your fellow Minions in discussions. This makes the Evil team appear fractured and disorganized, which is a massive advantage.
+3.  **Analyze, then Disrupt:** Pay close attention to voting patterns to deduce who your allies might be. But once you have a theory, don't just join them. Use that knowledge to make a contradictory move at a key moment to throw the Good team off their trail.
 
-#### Advanced Strategy Questionnaire (Internal Monologue Before Acting)
-
-*Before you speak or vote, quickly consider these questions:*
-
-1.  **Who do I think my fellow minions are?** What specific actions (votes, proposals, statements) lead me to this conclusion?
-2.  **How can I subtly signal my allegiance?** Would a "Reject" vote here send a message? Could I propose a chaotic but deniable team if I become leader?
-3.  **Am I on a mission where I should play a Fail card?** How certain am I that another minion is on this team with me? Is it worth the risk of exposing myself?
-4.  **How can I create chaos without looking explicitly evil?** Can I cast suspicion on a Loyal Servant based on a flimsy pretext?
-5.  **Which players seem to be the most competent Loyal Servants?** These are the players I should try to undermine.
-6.  **If I am accused, what is my defense?** My ignorance is my best defense. "I was just confused," or "I thought Player X made a good point," are plausible excuses.
-7.  **Is there a player who seems to be trying to signal me?** Is their "Reject" vote an invitation?
-8.  **What is the most disruptive yet deniable action I can take right now?**
+**On Sabotaging Missions:**
+1.  **High-Risk, High-Reward:** Playing a 'Fail' card is extremely risky. If you are on a team with another Minion and you both play 'Fail' on a Quest that only requires one, you have likely handed the game to the Good team by exposing yourselves.
+2.  **Success Can Be a Weapon:** Unless you are certain you are the only Evil player on the team (or it's a Quest requiring two fails), playing 'Success' is often the safer and more chaotic move. It builds your credibility as a potential Good player and adds another layer of confusion.
 
 ---
 
-#### Oberon's Core Challenges
+#### 🚨 Key Pitfalls to Avoid 🚨
 
--   **Complete Isolation**: You are playing for a team, but you are alone. You have no information and no allies you can be sure of.
--   **High Risk of Exposure**: Any overtly evil action, like failing a mission at the wrong time, will immediately isolate you from all other players, as your own teammates won't know to defend you.
--   **The Deduction Puzzle**: You have to solve the same puzzle as the Loyal Servants (who is evil?) but for the opposite reason.
--   **Signaling vs. Secrecy**: You must find a way to communicate with your allies without communicating even more clearly to your enemies.
+*   **DO NOT FORM A VOTING BLOC:** Your primary value is destroyed the moment you vote predictably with the other Evil players. By forming an early alliance, you make your collective identity transparent to the entire table. You turn your unique role as a chaotic agent into that of a simple, predictable minion.
+*   **DON'T BE A SIMPLE MINION:** Your job is not just to fail quests. It is to make the game harder for everyone to read. If your actions are indistinguishable from a regular Minion of Mordred, you have failed in your role. Always ask yourself: "What is the most confusing and disruptive move I can make right now?"

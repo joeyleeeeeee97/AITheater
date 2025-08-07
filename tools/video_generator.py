@@ -1,7 +1,6 @@
-"""
-OpenCV 超高速视频生成器 for M1 Mac
+"OpenCV 超高速视频生成器 for M1 Mac
 10倍速度提升，保持所有原有配置和数据结构
-"""
+"
 
 import os
 import sys
@@ -12,6 +11,7 @@ import gc
 import time
 import tempfile
 import subprocess
+import re
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 from functools import lru_cache
@@ -57,23 +57,30 @@ class FastTextRenderer:
             return ImageFont.load_default()
     
     def render_text(self, text: str, font_size: int, color: str = "white",
-                   size: Optional[Tuple[int, int]] = None) -> np.ndarray:
+                   size: Optional[Tuple[int, int]] = None, bg_color: Optional[Tuple[int, int, int]] = None,
+                   opacity: float = 1.0) -> np.ndarray:
         """渲染文字为 numpy 数组（RGBA）"""
         # 检查缓存
-        cache_key = f"{text}_{font_size}_{color}_{size}"
+        cache_key = f"{text}_{font_size}_{color}_{size}_{bg_color}_{opacity}"
         if cache_key in self.text_cache:
             return self.text_cache[cache_key].copy()
         
-        # 创建透明背景
+        # 创建背景
+        bg_alpha = int(opacity * 255)
+        if bg_color:
+            final_bg_color = (bg_color[0], bg_color[1], bg_color[2], bg_alpha)
+        else:
+            final_bg_color = (0, 0, 0, 0)
+
         if size:
-            img = Image.new('RGBA', size, (0, 0, 0, 0))
+            img = Image.new('RGBA', size, final_bg_color)
         else:
             # 自动计算大小
             font = self.get_font(font_size)
             bbox = font.getbbox(text)
             width = bbox[2] - bbox[0] + 20
             height = bbox[3] - bbox[1] + 10
-            img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+            img = Image.new('RGBA', (width, height), final_bg_color)
         
         draw = ImageDraw.Draw(img)
         font = self.get_font(font_size)
@@ -179,33 +186,47 @@ class OpenCVFrameCompositor:
         avatar_cfg = self.layout.get("avatar", {})
         avatar_size = tuple(avatar_cfg.get("size", [75, 75]))
         
-        # 获取说话的玩家
+        # 获取当前状态 from the structured event data
+        game_state = event.get("game_state", {})
         speaking_player = self._get_speaking_player(event)
+        current_leader = game_state.get("current_leader")
+        proposed_team = game_state.get("proposed_team")
+        dashboard_state = event.get("quest_dashboard_state", [])
         
+        # 绘制仪表盘
+        self._draw_quest_dashboard(frame, dashboard_state)
+
         # 绘制所有玩家头像
         for player_info in player_positions:
             player_id = player_info['player_id']
             pos = player_info.get("position", [0, 0])
             
-            # 如果是说话的玩家，先画边框
+            is_leader = (player_id == current_leader)
+            
+            # 如果是说话的玩家，先画边框和标签
             if player_id == speaking_player:
                 self._draw_speaking_border(frame, pos, avatar_size, avatar_cfg)
+                self._draw_speaker_tag(frame, pos)
             
             # 绘制头像
             avatar_key = f'avatar_{player_id}'
             if avatar_key in self.asset_cache:
                 self._overlay_image(frame, self.asset_cache[avatar_key], pos)
             
-            # 添加玩家名称标签
-            self._draw_player_label(frame, player_id, pos, avatar_size)
-        
+            # 添加玩家名称标签 (区分领袖)
+            self._draw_player_label(frame, player_id, pos, avatar_size, is_leader)
+
+            # 如果是领袖且有提议队伍，则显示
+            if is_leader and proposed_team:
+                self._draw_proposed_team(frame, proposed_team, pos)
+
         # 添加字幕
         if subtitle_text:
             self._add_subtitle(frame, subtitle_text)
         
         # 添加信息面板
         if info_text:
-            self._add_info_panel(frame, info_text)
+            self._add_info_panel(frame, info_text, event.get("event_type"))
         
         return frame
     
@@ -271,40 +292,108 @@ class OpenCVFrameCompositor:
         
         # 这里我们不挖空，让头像覆盖
     
+    def _draw_speaker_tag(self, frame: np.ndarray, position: List[int]):
+        """Draws the 'SPEAKING' tag above the avatar."""
+        tag_cfg = self.layout.get("speaker_tag", {})
+        text = tag_cfg.get("text", "SPEAKING")
+        font_size = tag_cfg.get("font_size", 46)
+        color = tag_cfg.get("color", "#FFD700")
+        offset = tag_cfg.get("offset_from_avatar", [-45, -65])
+
+        # Render the text using the high-quality text renderer
+        text_img = self.text_renderer.render_text(text, font_size, color)
+
+        # Calculate the top-left position based on the avatar's center and the offset
+        text_h, text_w = text_img.shape[:2]
+        # The offset in the config is from the avatar's top-left, so we first find the avatar's top-left
+        avatar_size = self.layout.get("avatar", {}).get("size", [75, 75])
+        avatar_top_left_x = position[0] - avatar_size[0] // 2
+        avatar_top_left_y = position[1] - avatar_size[1] // 2
+        
+        # Now apply the offset
+        overlay_x = avatar_top_left_x + offset[0]
+        overlay_y = avatar_top_left_y + offset[1]
+
+        # Overlay the rendered text image onto the frame
+        self._overlay_image(frame, text_img, [overlay_x + text_w // 2, overlay_y + text_h // 2])
+
     def _draw_player_label(self, frame: np.ndarray, player_id: int,
-                          position: List[int], avatar_size: Tuple[int, int]):
-        """绘制玩家标签"""
-        model_cfg = self.layout.get("model_tag", {})
-        offset = model_cfg.get("offset_from_avatar", [0, 95])
+                          position: List[int], avatar_size: Tuple[int, int], is_leader: bool):
+        """绘制玩家标签, 区分领袖"""
+        if is_leader:
+            cfg = self.layout.get("leader_tag", {})
+        else:
+            cfg = self.layout.get("player_tag", {})
+
+        offset = cfg.get("offset_from_avatar", [0, 95])
+        font_size = cfg.get("font_size", 28)
+        color = cfg.get("color", "#E0E0E0")
+        text_format = cfg.get("format", "Player {player_id}")
         
         # 计算文字位置
         text_x = position[0] + offset[0]
         text_y = position[1] + offset[1]
         
-        # 使用 OpenCV 绘制文字（简单方式）
-        text = f"Player {player_id}"
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.5
-        thickness = 1
-        color = (224, 224, 224)  # BGR
+        # 使用 PIL 渲染以支持 TTF 和更好的质量
+        text = text_format.format(player_id=player_id)
+        text_img = self.text_renderer.render_text(text, font_size, color)
+
+        # 计算叠加位置 (居中)
+        text_h, text_w = text_img.shape[:2]
+        overlay_x = text_x - text_w // 2
+        overlay_y = text_y - text_h // 2
         
-        # 获取文字大小
-        (text_width, text_height), _ = cv2.getTextSize(text, font, font_scale, thickness)
+        self._overlay_image(frame, text_img, [overlay_x + text_w // 2, overlay_y + text_h // 2])
+
+    def _draw_proposed_team(self, frame: np.ndarray, team: List[int], leader_pos: List[int]):
+        """在领袖下方绘制提议的队伍"""
+        cfg = self.layout.get("proposed_team", {})
+        offset = cfg.get("offset_from_leader_avatar", [0, 120])
+        font_size = cfg.get("font_size", 28)
+        color = cfg.get("color", "#FF4136")
         
-        # 居中文字
-        text_x = text_x - text_width // 2
+        text = f"-> {team}"
+        text_img = self.text_renderer.render_text(text, font_size, color)
         
-        # 绘制文字背景（提高可读性）
-        padding = 2
-        cv2.rectangle(frame,
-                     (text_x - padding, text_y - text_height - padding),
-                     (text_x + text_width + padding, text_y + padding),
-                     (0, 0, 0), -1)
+        text_x = leader_pos[0] + offset[0]
+        text_y = leader_pos[1] + offset[1]
         
-        # 绘制文字
-        cv2.putText(frame, text, (text_x, text_y),
-                   font, font_scale, color, thickness, cv2.LINE_AA)
-    
+        text_h, text_w = text_img.shape[:2]
+        overlay_x = text_x - text_w // 2
+        overlay_y = text_y - text_h // 2
+        
+        self._overlay_image(frame, text_img, [overlay_x + text_w // 2, overlay_y + text_h // 2])
+
+    def _draw_quest_dashboard(self, frame: np.ndarray, dashboard_state: List[Dict]):
+        """Renders the quest results at the top of the screen."""
+        if not dashboard_state:
+            return
+        
+        cfg = self.layout.get("quest_dashboard", {})
+        pos = cfg.get("position", ["center", 10])
+        font_size = cfg.get("font_size", 36)
+        color = cfg.get("color", "#FFFFFF")
+        line_spacing = cfg.get("line_spacing", 5)
+        
+        current_y = pos[1]
+        
+        for quest in dashboard_state:
+            q_num = quest.get("quest_number")
+            q_team = quest.get("team")
+            q_result = quest.get("result", "PENDING")
+            
+            text = f"QUEST {q_num}: {q_team} -> {q_result.capitalize()}!"
+            text_img = self.text_renderer.render_text(text, font_size, color)
+            
+            text_h, text_w = text_img.shape[:2]
+            if pos[0] == "center":
+                x = (frame.shape[1] - text_w) // 2
+            else:
+                x = pos[0]
+            
+            self._overlay_image(frame, text_img, [x + text_w // 2, current_y + text_h // 2])
+            current_y += text_h + line_spacing
+
     def _add_subtitle(self, frame: np.ndarray, text: str):
         """添加字幕 - 使用 PIL 渲染，OpenCV 合成"""
         if not text:
@@ -342,22 +431,29 @@ class OpenCVFrameCompositor:
             text_bgr = cv2.cvtColor(text_img, cv2.COLOR_RGB2BGR)
             frame[y:y+size[1], x:x+size[0]] = text_bgr
     
-    def _add_info_panel(self, frame: np.ndarray, text: str):
+    def _add_info_panel(self, frame: np.ndarray, text: str, event_type: Optional[str]):
         """添加信息面板"""
         if not text:
             return
         
         panel_cfg = self.layout.get("info_panel", {})
-        style_cfg = panel_cfg.get("system_message_style", {})
         
+        # Choose style based on event type
+        if event_type and "SPEECH" in event_type:
+            style_cfg = panel_cfg.get("player_summary_style", {})
+        else:
+            style_cfg = panel_cfg.get("system_message_style", {})
+
         position = panel_cfg.get("position", ["center", 550])
         size = panel_cfg.get("size", [700, 300])
         font_size = style_cfg.get("font_size", 32)
         text_color = style_cfg.get("text_color", "#FFFFFF")
+        bg_color = style_cfg.get("background_color")
+        opacity = style_cfg.get("opacity", 0.6)
         
         # 使用 PIL 渲染
         text_img = self.text_renderer.render_text(
-            text, font_size, text_color, tuple(size)
+            text, font_size, text_color, tuple(size), bg_color=bg_color, opacity=opacity
         )
         
         # 计算位置
@@ -369,14 +465,8 @@ class OpenCVFrameCompositor:
         
         # 叠加到帧
         if text_img.shape[2] == 4:
-            text_bgr = cv2.cvtColor(text_img[:, :, :3], cv2.COLOR_RGB2BGR)
-            alpha = text_img[:, :, 3] / 255.0
-            alpha = np.expand_dims(alpha, axis=2)
-            
-            roi = frame[y:y+text_img.shape[0], x:x+text_img.shape[1]]
-            if roi.shape[:2] == text_bgr.shape[:2]:
-                roi[:] = (1 - alpha) * roi + alpha * text_bgr
-    
+            self._overlay_image(frame, text_img, [x + size[0] // 2, y + size[1] // 2])
+
     def _get_speaking_player(self, event: Dict) -> Optional[int]:
         """获取说话的玩家ID"""
         player_id = event.get("player_id")
@@ -486,7 +576,7 @@ class OpenCVVideoGenerator:
             script_path: 脚本 JSON 路径
             metadata_path: 元数据 JSON 路径
             subtitle_path: 字幕 JSON 路径
-            output_path: 输出视频路径
+            output_path: 输出视频文件
             max_events: 最大事件数（用于测试）
         
         Returns:

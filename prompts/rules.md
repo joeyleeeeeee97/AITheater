@@ -1,80 +1,77 @@
-# Game Rules: The Resistance - Avalon
+# The Resistance: Avalon - Formal Rules and Game Logic
 
-## 1. Core Objective
-The game is a contest between two teams: the **Loyal Servants of Arthur** (Good) and the **Minions of Mordred** (Evil). The game consists of 5 rounds, or "Missions".
+*This document is based on the formal specification from the Cognitive Architecture research guide.*
 
-- **Loyal Servants Win Condition:** Successfully complete 3 Missions.
-- **Minions of Mordred Win Condition:** Cause 3 Missions to fail, OR successfully assassinate Merlin at the end of the game.
+---
 
-## 2. Key Roles & Abilities
+### Section 1: The Rules of Engagement: A Formal Specification of Avalon
 
-This section defines the roles and what information they possess at the start of the game.
+A mastery of Avalon necessitates a precise, unambiguous understanding of its rule set. This section codifies the game's mechanics, objectives, and procedural flow, providing a definitive baseline for a computational agent.
 
-#### Good Roles (Loyal Servants of Arthur)
-- **Merlin:** You know the identities of all evil players, *except for Mordred*. You must conceal your own identity.
-- **Percival:** You know the identities of two players: Merlin and Morgana. You do not know which is which.
-- **Loyal Servant:** You have no special knowledge. You must deduce the identities of the evil players.
+**1.1 Core Objective and Factional Win Conditions**
+The game is a contest between two factions with opposing objectives and asymmetric information.
 
-#### Evil Roles (Minions of Mordred)
-- **Morgana:** You are an evil player who appears as Merlin to Percival.
-- **Mordred:** You are an evil player whose identity is hidden from Merlin.
-- **Oberon:** You are an evil player, but you do not know who the other evil players are, and they do not know you.
-- **Minion:** You know all other evil players (except Oberon).
+*   **The Good Faction (Loyal Servants of Arthur):** The primary objective for the Good team is to successfully complete three of the five missions (referred to as Quests). A secondary, critical condition is that the identity of the character Merlin must remain concealed from the Evil faction. If both conditions are met, the Good team wins.
+*   **The Evil Faction (Minions of Mordred):** The Evil team has three distinct paths to victory:
+    1.  **Mission Sabotage:** Cause three Quests to end in failure.
+    2.  **Assassination:** After the Good team has successfully completed three Quests, the Evil player with the Assassin role correctly identifies and names the player who is Merlin.
+    3.  **Political Stalemate:** Force five consecutive proposed Teams for a single Quest to be rejected by vote.
 
-## 3. Information Flow (The "Eyes Open/Closed" Phase)
-This sequence determines what each role knows at the start of the game.
+**1.2 Game Components and Terminology**
+*   **Character Cards:** Secretly assigned to each player, determining their allegiance (Good/Evil) and any special abilities.
+*   **Leader Token:** Designates the player currently responsible for proposing a Quest Team.
+*   **Vote Tokens:** A set of 'Approve' and 'Reject' tokens used by all players to vote on a proposed Team.
+*   **Quest Cards:** A set of 'Success' and 'Fail' cards used by players on an approved Team to determine the outcome of the Quest.
+*   **Score Markers:** Blue (Good/Arthur) and Red (Evil/Mordred) markers used to track the outcome of each Quest on the tableau.
+*   **Round Marker:** A token that indicates which of the five Quests is currently being contested.
+*   **Score Tableau:** A board that tracks the progress of the five Quests, the players required for each, and the vote track for Team proposals.
 
-1.  All evil players (except Oberon) learn each other's identities.
-2.  Merlin learns the identities of all evil players (except Mordred).
-3.  Percival learns the identities of Merlin and Morgana, but does not know which player is which role.
+**1.3 Setup Protocol and Role Distribution**
+1.  **Board and Token Distribution:** The appropriate Score Tableau for the number of players is placed in the play area. Each player receives one 'Approve' and one 'Reject' Vote Token. A random player is selected to be the first Leader and receives the Leader Token.
+2.  **Role Assignment:** The appropriate number of Good and Evil Character cards are selected based on player count. These cards are shuffled and one is dealt face-down to each player. Players secretly view their own role.
+3.  **The "Night Phase" (Reveal Stage):** This scripted phase establishes the initial semi-private knowledge states.
+    *   "Everyone close your eyes and extend your hand into a fist in front of you."
+    *   "Minions of Mordred (excluding Oberon), open your eyes and look around to know all agents of Evil."
+    *   "Minions of Mordred, close your eyes."
+    *   "Minions of Mordred (excluding Mordred), extend your thumb so that Merlin will know of you."
+    *   "Merlin, open your eyes to see the agents of Evil."
+    *   "Merlin, close your eyes."
+    *   (If Percival and Morgana are in the game): "Merlin and Morgana, extend your thumb."
+    *   "Percival, open your eyes to see Merlin and Morgana." (Percival does not know which is which).
+    *   "Percival, close your eyes."
+    *   "Everyone open your eyes."
 
-## 4. Gameplay Flow
+**1.4 Standard Game Configurations**
 
-The game proceeds in rounds, each with a **Team Proposal Phase** and a **Mission Phase**.
+| Total Players | Good Players | Evil Players | Quest Team Sizes (1-5) | 4th Quest Fails | Recommended Special Roles (Good) | Recommended Special Roles (Evil) |
+| :--- | :---: | :---: | :---: | :---: | :--- | :--- |
+| **5** | 3 | 2 | 2, 3, 2, 3, 3 | 1 | Merlin, Percival | Morgana, Assassin |
+| **6** | 4 | 2 | 2, 3, 4, 3, 4 | 1 | Merlin, Percival | Morgana, Assassin |
+| **7** | 4 | 3 | 2, 3, 3, 4*, 4 | 2 | Merlin, Percival | Morgana, Oberon, Assassin |
+| **8** | 5 | 3 | 3, 4, 4, 5*, 5 | 2 | Merlin, Percival | Morgana, Assassin, Minion |
+| **9** | 6 | 3 | 3, 4, 4, 5*, 5 | 2 | Merlin, Percival | Mordred, Morgana, Assassin |
+| **10**| 6 | 4 | 3, 4, 4, 5*, 5 | 2 | Merlin, Percival | Mordred, Morgana, Oberon, Assassin |
+*(*Indicates that this Quest requires two 'Fail' cards to be considered a failure. In all other cases, one 'Fail' card is sufficient.*)
 
-#### Step 1: Team Proposal
-- The current **Leader** proposes a team to go on the current Mission. The size of the team is predetermined (see table below).
-- All players, including the Leader, publicly discuss the proposed team.
-- All players secretly vote **Approve** or **Reject** on the team proposal.
+**1.5 The Sequence of Play: A State-Machine Approach**
 
-#### Step 2: Voting Outcome
-- If the vote is a majority **Approve**, the team is approved and proceeds to the Mission Phase.
-- If the vote is a majority **Reject** (or a tie), the Leader token passes to the next player, and the process repeats.
-- **Five Rejected Teams Rule:** If 5 consecutive team proposals are rejected, the Minions of Mordred immediately win the game.
+*   **State 1: Team Building Phase**
+    *   **1a. Team Proposal:** The current Leader selects players for the Quest Team.
+    *   **1b. Discussion:** An unstructured period of open communication.
+    *   **1c. Voting:** All players vote 'Approve' or 'Reject'. A simple majority approves the team. A tie is a rejection.
+    *   **1d. Transition:** On Approval, proceed to State 2. On Rejection, pass the Leader token clockwise. If this is the 5th consecutive rejection **for the current Quest**, Evil wins immediately. This five-vote limit resets to zero for each new Quest.
 
-#### Step 3: Mission Execution
-- Each player on the approved team secretly chooses a Mission card.
-- **Loyal Servants** *must* play a **Success** card.
-- **Minions of Mordred** may play either a **Success** or a **Fail** card.
-- The cards are shuffled and revealed.
-- **Mission Success:** The mission succeeds only if all revealed cards are **Success**.
-- **Mission Failure:** The mission fails if one or more **Fail** cards are revealed. (Note: Some missions require two Fail cards to fail).
+*   **State 2: Quest Phase**
+    *   **2a. Card Selection:** Team members secretly choose 'Success' or 'Fail'. (Loyal Servants **must** choose 'Success').
+    *   **2b. Card Reveal:** The Leader shuffles and reveals the cards.
 
-#### Step 4: Assassination Phase
-- This phase only occurs if the Loyal Servants have successfully completed 3 missions.
-- The player with the **Assassin** role (one of the Minions of Mordred) publicly names one player they believe is Merlin.
-- If the guess is correct, the **Minions of Mordred win**.
-- If the guess is incorrect, the **Loyal Servants of Arthur win**.
+*   **State 3: Resolution Phase**
+    *   **3a. Determine Outcome:** The Quest succeeds only if all cards are 'Success'.
+    *   **3b. Update Tableau:** Mark the quest as Success or Failure.
+    *   **3c. Transition:** Check for game-end conditions. If none are met, return to State 1.
 
-## 5. Game Configurations
-
-#### Mission Team Sizes
-| Number of Players | Mission 1 | Mission 2 | Mission 3 | Mission 4 | Mission 5 |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| 5 Players | 2 | 3 | 2 | 3 | 3 |
-| 6 Players | 2 | 3 | 4 | 3 | 4 |
-| 7 Players | 2 | 3 | 3 | 4* | 4 |
-| 8 Players | 3 | 4 | 4 | 5* | 5 |
-| 9 Players | 3 | 4 | 4 | 5* | 5 |
-| 10 Players| 3 | 4 | 4 | 5* | 5 |
-*(*Missions marked with an asterisk require two **Fail** cards to fail. All others require only one.*)
-
-#### Recommended Role Setups
-| Players | Loyal Servants of Arthur (Good) | Minions of Mordred (Evil) |
-| :--- | :--- | :--- |
-| **5** | Merlin, Percival, Loyal Servant | Mordred, Morgana |
-| **6** | Merlin, Percival, 2x Loyal Servant | Mordred, Morgana |
-| **7** | Merlin, Percival, 2x Loyal Servant | Mordred, Morgana, Minion |
-| **8** | Merlin, Percival, 3x Loyal Servant | Mordred, Morgana, Minion |
-| **9** | Merlin, Percival, 4x Loyal Servant | Mordred, Morgana, Minion |
-| **10**| Merlin, Percival, 4x Loyal Servant | Mordred, Morgana, Minion, Oberon |
+**1.6 Special Game Mechanics: The Assassin's Gambit**
+If the Good team achieves three successful Quests, the game is not over.
+*   The Evil players may openly discuss.
+*   The **Assassin** names one player they believe is Merlin.
+*   If correct, **Evil wins**. If incorrect, **Good wins**.

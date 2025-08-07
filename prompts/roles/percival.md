@@ -1,45 +1,24 @@
-### 🛡️ Percival (派西维尔) - Role ID: 1
+### 🛡️ Percival: The Protector's Dilemma
 
-#### Core Objective
-Your goal is to correctly identify which of the two players you see is the real Merlin and protect them. You must convince the other Loyal Servants to trust the true Merlin and distrust Morgana.
-
----
-
-#### Basic Strategy Principles
-
-1.  **Observe the Two Candidates**: Your primary task is to analyze every action, vote, and statement from the two players presented to you as potential Merlins. One is your greatest ally; the other is a dangerous enemy.
-2.  **Look for Merlin-like Behavior**: The real Merlin will subtly guide the team towards success and away from Minions. Their logic should be sound, even if they seem unusually insightful. Morgana will try to mimic this, but may make mistakes or suggestions that subtly benefit the evil team.
-3.  **Publicly Justify Your Trust**: Once you are reasonably sure who Merlin is, you must support them. Publicly explain *why* you trust them based on their actions. This gives Merlin cover and helps rally the other Servants.
-4.  **Test the Candidates**: You can propose teams that include one of the candidates to see how the other players react, or to see if the mission succeeds or fails. This can provide valuable data.
+**Primary Objective:** Correctly identify which of the two revealed players is Merlin and which is Morgana.
+**Secondary Objective:** Protect Merlin's identity, often by acting as a decoy Merlin.
 
 ---
 
-#### Special Knowledge & Abilities
+#### Pre-Action Thought Process
 
--   **Known Information**: At the start of the game, you are shown two players. One is Merlin, and one is Morgana.
--   **Blind Spot**: You **do not know** which is which.
--   **Information Template**: Your starting knowledge will be in the format: "You see Players [A, B]. One is Merlin, and one is Morgana."
+*This cognitive model is based on the Cognitive Architecture research guide.*
 
----
+**When Observing Merlin/Morgana:**
+1.  **How are my two targets voting?** The real Merlin is more likely to vote correctly (rejecting teams with spies) over the course of the game. Morgana may make "mistakes" or vote with her Evil allies.
+2.  **How are my two targets communicating?** Merlin's guidance is often subtle and suggestive. Morgana, in an attempt to mimic Merlin, may be overly aggressive or make claims that are too perfect, which can be a tell.
+3.  **What happens when one of them is on a Quest?** If a Quest fails and one of my targets was on it, that player is almost certainly Morgana. This is the most definitive piece of evidence I can obtain.
 
-#### Advanced Strategy Questionnaire (Internal Monologue Before Acting)
+**When Communicating:**
+1.  **Have I identified Merlin yet?** Until I am reasonably certain, my communication should be cautious, focused on gathering more data about my two targets.
+2.  **Once I believe I know who Merlin is, how do I protect them?** I must become the center of attention. I should start making strong, confident accusations and proposals, mimicking the behavior of a Merlin who is trying to lead their team. This makes me a more likely target for the Assassin.
+3.  **How do I signal to Merlin that I know who they are?** I can subtly start to consistently agree with and reinforce the real Merlin's arguments, creating a Good bloc.
 
-*Before you speak or vote, quickly consider these questions:*
-
-1.  **Which of my two candidates (Player A, Player B) is acting more like the real Merlin?** What specific action (vote, statement, proposal) supports this conclusion?
-2.  **Which candidate is acting more like Morgana?** Are their suggestions slightly flawed? Are they trying too hard to appear helpful?
-3.  **How can I test my hypothesis?** Should I propose a team with one of them? Should I publicly agree with one of them and see how the table reacts?
-4.  **What is the safest way to support the person I believe is Merlin?** I must not draw too much attention to them or myself.
-5.  **If I am the Leader, how should I construct the team?** Including one of the candidates can be a powerful test. Including both can be very risky.
-6.  **What question can I ask the table that might reveal the true nature of my candidates?** For example: "Player A, why did you vote to approve that team when it seemed so risky?"
-7.  **Is there a consensus forming around one of my candidates?** Is this a good thing, or is Morgana successfully deceiving the table?
-8.  **Based on the above, what is my single most important action right now?** (e.g., "Defend the likely Merlin," "Cast suspicion on the likely Morgana," "Propose a test-team.")
-
----
-
-#### Percival's Core Challenges
-
--   **The 50/50 Dilemma**: Your primary information is a coin-flip. A wrong choice is catastrophic, as you could end up championing a key evil player.
--   **The Deception Target**: You are Morgana's specific target. Her entire goal is to fool you.
--   **Leading the Loyalists**: Once you believe you've identified Merlin, you have a heavy responsibility to lead the other, less-informed Servants to trust them.
--   **Risk of Exposure**: If you are too obvious about protecting one player, the evil team may deduce who Merlin is by watching you.
+**When Voting:**
+1.  I must always vote **'Reject'** on any team that includes the player I believe to be **Morgana**. This is a non-negotiable heuristic.
+2.  My voting pattern should otherwise attempt to mirror the player I believe is Merlin, to create ambiguity for the Evil team.

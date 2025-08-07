@@ -3,34 +3,55 @@
 
 player_setup:
   - player_id: 0
-    model: "gpt-4-turbo"
+    model: "gemini/gemini-2.5-pro"
   - player_id: 1
-    model: "gemini/gemini-1.5-pro-latest"
+    model: "gemini/gemini-2.5-pro"
   - player_id: 2
-    model: "anthropic/claude-3-haiku-20240307"
+    model: "gemini/gemini-2.5-pro"
   - player_id: 3
-    model: "xai/grok-4-latest"
+    model: "gemini/gemini-2.5-pro"
   - player_id: 4
-    model: "deepseek/deepseek-chat"
+    model: "gemini/gemini-2.5-pro"
   - player_id: 5
-    model: "groq/llama3-8b-8192" # Using Groq for speed
+    model: "gemini/gemini-2.5-pro"
   - player_id: 6
-    model: "groq/llama3-8b-8192" # Using Groq for speed
+    model: "gemini/gemini-2.5-pro"
 
-# Role configuration for a 7-player game
+# Role and game structure configuration for different game sizes
 roles:
+  5:
+    num_good: 3
+    num_evil: 2
+    roles: ["Merlin", "Percival", "Loyal Servant", "Morgana", "Assassin"]
+    evil_roles: ["Morgana", "Assassin"]
+    team_sizes: [2, 3, 2, 3, 3]
+  6:
+    num_good: 4
+    num_evil: 2
+    roles: ["Merlin", "Percival", "Loyal Servant", "Loyal Servant", "Morgana", "Assassin"]
+    evil_roles: ["Morgana", "Assassin"]
+    team_sizes: [2, 3, 4, 3, 4]
   7:
     num_good: 4
     num_evil: 3
-    roles: ["Merlin", "Percival", "Minion", "Morgana", "Loyal Servant", "Loyal Servant", "Loyal Servant"]
-    evil_roles: ["Minion", "Morgana"]
-
-# General game rules and context provided to the agents
-game_rules: "This is The Resistance: Avalon. Follow the rules and your role's objectives."
-
-role_contexts:
-  Merlin: "You are Merlin. You know the agents of evil, but you must guide the loyal servants to victory without revealing your identity. If the assassin identifies you, evil wins."
-  Percival: "You are Percival. You know the two players who are Merlin and Morgana, but you do not know which is which."
-  Minion: "You are a Minion of Mordred. Your goal is to fail quests and ensure evil triumphs."
-  Morgana: "You are Morgana. You appear as Merlin to Percival. Your goal is to confuse Percival and help evil win."
-  Loyal Servant: "You are a Loyal Servant of Arthur. You must identify the minions and ensure that quests succeed."
+    roles: ["Merlin", "Percival", "Loyal Servant", "Loyal Servant", "Morgana", "Oberon", "Assassin"]
+    evil_roles: ["Morgana", "Oberon", "Assassin"]
+    team_sizes: [2, 3, 3, 4, 4] # Note: 4th quest requires 2 fails
+  8:
+    num_good: 5
+    num_evil: 3
+    roles: ["Merlin", "Percival", "Loyal Servant", "Loyal Servant", "Loyal Servant", "Morgana", "Assassin"]
+    evil_roles: ["Morgana", "Assassin"]
+    team_sizes: [3, 4, 4, 5, 5] # Note: 4th quest requires 2 fails
+  9:
+    num_good: 6
+    num_evil: 3
+    roles: ["Merlin", "Percival", "Loyal Servant", "Loyal Servant", "Loyal Servant", "Loyal Servant", "Mordred", "Morgana", "Assassin"]
+    evil_roles: ["Mordred", "Morgana", "Assassin"]
+    team_sizes: [3, 4, 4, 5, 5] # Note: 4th quest requires 2 fails
+  10:
+    num_good: 6
+    num_evil: 4
+    roles: ["Merlin", "Percival", "Loyal Servant", "Loyal Servant", "Loyal Servant", "Loyal Servant", "Mordred", "Morgana", "Oberon", "Assassin"]
+    evil_roles: ["Mordred", "Morgana", "Oberon", "Assassin"]
+    team_sizes: [3, 4, 4, 5, 5] # Note: 4th quest requires 2 fails
