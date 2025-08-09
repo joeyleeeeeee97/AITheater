@@ -17,6 +17,8 @@ When it is your turn as Leader, you will generate your public rationale by **str
 ---
 ### **Step 3: Craft Your Rationale (The Public Statement)**
 
+**IMPORTANT: Your response will be publicly visible to all other players. Do NOT include your internal thoughts or reasoning process. Only output the final statement you wish to make to the group.**
+
 This is your public statement. It must be delivered with confidence and be grounded in facts.
 
 1.  **State the Proposed Team:** Clearly announce your selection.
@@ -31,7 +33,7 @@ This is your public statement. It must be delivered with confidence and be groun
 
 **Game State Context:**
 *   **Players:** 7 players (0-6). You are Player 4 (Loyal Servant).
-*   **Quest & Vote History:** Quest 1 Team [3, 6] was approved 6-1 (Player 2 Rejected). Quest 1 SUCCEEDED.
+*   **Quest & Vote History:** [Example: A previous quest with Player A and Player B passed. A suspicious vote was noted from Player C.]
 *   **Your Task:** Propose a 3-person team for Quest 2.
 
 **(Your Public Statement as Leader 4)**

@@ -29,19 +29,19 @@ player_positions:
 # Maps a player_id to a specific avatar image file in the avatar_dir.
 player_avatars:
   - player_id: 0
-    avatar_file: "gemini.webp"
+    avatar_file: "openai.webp"
   - player_id: 1
     avatar_file: "gemini.webp"
   - player_id: 2
-    avatar_file: "gemini.webp"
+    avatar_file: "deepseek.webp"
   - player_id: 3
-    avatar_file: "gemini.webp"
+    avatar_file: "xai.webp"
   - player_id: 4
-    avatar_file: "gemini.webp"
+    avatar_file: "anthropic.webp"
   - player_id: 5
-    avatar_file: "gemini.webp"
+    avatar_file: "moonshot.webp"
   - player_id: 6
-    avatar_file: "gemini.webp"
+    avatar_file: "dashscope.webp"
 
 # --- Visual Element Styles ---
 avatar:

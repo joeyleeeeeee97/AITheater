@@ -8,10 +8,10 @@ import logging
 import os
 import sys
 from typing import Any, Dict, List, Optional, Union, Tuple
-import litellm
 
 # Add project root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.llm_handler import unified_llm_call
 
 # --- Protocol Definitions ---
 
@@ -105,75 +105,6 @@ class ActionResponsePayload:
     action_data: Union[DiscussionAction, TeamProposalAction, VoteAction, QuestAction, AssassinationAction, AssassinationProposalAction, AssassinationDiscussionAction, MvpNominationAction, Any]
     llm_reasoning: Optional[str] = None
     response_time_ms: Optional[int] = None
-
-# --- Unified LLM Client with Cost Tracking ---
-
-class UnifiedLLMClient:
-    """
-    A unified LLM client using LiteLLM to support multiple providers,
-    with built-in cost tracking.
-    """
-    def __init__(self, model: str, system_prompt: str):
-        self.model = model
-        self.system_prompt = system_prompt
-        self.total_cost = 0.0
-        self.logger = logging.getLogger("debug")
-        self.history = [] # To store conversation history for context
-
-    async def generate(self, prompt: str) -> Tuple[str, float]:
-        # Add user prompt to history
-        self.history.append({"role": "user", "content": prompt})
-        
-        messages = [{"role": "system", "content": self.system_prompt}] + self.history
-        
-        response_text = "Error: No response generated."
-        cost = 0.0
-        
-        try:
-            response = await litellm.acompletion(
-                model=self.model,
-                messages=messages
-            )
-            
-            response_text = response.choices[0].message.content
-            self.history.append({"role": "assistant", "content": response_text}) # Add model response to history
-            
-                        # Use litellm's cost tracking utility - this is NOT an async function
-            cost = litellm.completion_cost(completion_response=response)
-            self.total_cost += cost
-            
-        except Exception as e:
-            self.logger.error(f"LLM generation failed for model {self.model}: {e}")
-            response_text = f"I encountered an error and could not respond. (Error: {e})"
-            # Do not add failed responses to history
-
-        return response_text, float(cost)
-
-    def get_total_cost(self) -> float:
-        return self.total_cost
-
-# --- Mock LLM Client for Testing ---
-
-class MockLLMClient:
-    """A mock LLM client for testing."""
-    def __init__(self, model: str, system_prompt: str):
-        self.logger = logging.getLogger("debug")
-        self.role = "MockRole"
-        self.history = []
-
-    async def generate(self, prompt: str) -> Tuple[str, float]:
-        self.history.append({"role": "user", "parts": [prompt]})
-        self.logger.debug(f"--- Mock LLM Received Prompt (Role: {self.role}) ---\n{prompt}\n--------------------------------")
-        
-        response_text = "This is a mock response."
-        # Simplified mock logic
-        
-        self.history.append({"role": "model", "parts": [response_text]})
-        await asyncio.sleep(0.1)
-        return response_text, 0.0
-
-    def get_total_cost(self) -> float:
-        return 0.0
 
 class PromptManager:
     """Generates prompts based on game state."""
@@ -414,9 +345,10 @@ class RoleAgent:
         self.role: Optional[str] = None
         self.game_id: Optional[str] = None
         self.known_info: Optional[str] = None
-        self.llm_client: Optional[Union[UnifiedLLMClient, MockLLMClient]] = None
         self.prompt_manager = PromptManager()
         self.known_history_index: int = 0
+        self.conversation_history: List[Dict] = []
+        self.system_prompt: Optional[str] = None
         self.logger.debug(f"Agent {self.player_id} created, will use model: {self.model_name}")
 
     async def receive_message(self, message: BaseMessage) -> Optional[BaseMessage]:
@@ -433,9 +365,8 @@ class RoleAgent:
         self.role = payload.role
         self.known_info = payload.initial_personal_info.get("known_info", "You have no special knowledge.")
         
-        system_prompt = f"{payload.game_rules}\n{payload.role_context}\nYou are a player in The Resistance: Avalon. Your role is {self.role}. "
-        # Instantiate the LLM client directly with the stored model name
-        self.llm_client = UnifiedLLMClient(model=self.model_name, system_prompt=system_prompt)
+        self.system_prompt = f"{payload.game_rules}\n{payload.role_context}\nYou are a player in The Resistance: Avalon. Your role is {self.role}. "
+        self.conversation_history = [] # Reset history at the start of a new game
         self.known_history_index = 0
 
         self.logger.debug(f"Agent {self.player_id} ({self.role}) initialized. Known info: {self.known_info}")
@@ -446,9 +377,23 @@ class RoleAgent:
         debug_logger = logging.getLogger("debug")
 
         async def get_llm_response(prompt: str) -> str:
-            response_text, cost = await self.llm_client.generate(prompt)
-            debug_logger.debug(f"Player {self.player_id} ({self.role}) LLM call cost: ${cost:.6f}")
-            return response_text
+            # Combine system prompt with the first user message for better compatibility
+            if not self.conversation_history: # This is the first turn
+                full_prompt = f"{self.system_prompt}\n\n{prompt}"
+                self.conversation_history.append({"role": "user", "content": full_prompt})
+            else:
+                self.conversation_history.append({"role": "user", "content": prompt})
+
+            # Use only the conversation history, as the system prompt is now merged
+            messages = self.conversation_history
+            
+            response_text = await unified_llm_call(self.model_name, messages)
+            
+            if response_text:
+                self.conversation_history.append({"role": "assistant", "content": response_text})
+                return response_text
+            else:
+                return "Error: No response from LLM."
 
         if action_payload.action_type == "PARTICIPATE_DISCUSSION":
             prompt = self.prompt_manager.get_discussion_prompt(self.player_id, self.known_info, action_payload.history_segment)
@@ -462,17 +407,17 @@ class RoleAgent:
             
             lines = response_str.strip().split('\n')
             team_line = next((line for line in lines if line.startswith("Team:")), None)
-            reasoning_line = next((line for line in lines if line.startswith("Reasoning:")), None)
             team_members = []
-            reasoning = ""
+            # The entire raw response is now the reasoning
+            reasoning = response_str
+            
             if team_line:
                 try:
                     team_members_str = team_line.replace("Team:", "").strip()
                     team_members = json.loads(team_members_str)
                 except json.JSONDecodeError:
                     debug_logger.warning(f"Could not parse team members from: {team_members_str}")
-            if reasoning_line:
-                reasoning = reasoning_line.replace("Reasoning:", "").strip()
+            
             action_data = TeamProposalAction(team_members=team_members, reasoning=reasoning)
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
@@ -487,18 +432,19 @@ class RoleAgent:
             
             lines = response_str.strip().split('\n')
             team_line = next((line for line in lines if line.startswith("Team:")), None)
-            reasoning_line = next((line for line in lines if line.startswith("Reasoning:")), None)
             team_members = []
-            reasoning = ""
+            # The entire raw response is now the reasoning
+            reasoning = response_str
+
             if team_line:
                 try:
                     team_members_str = team_line.replace("Team:", "").strip()
                     team_members = json.loads(team_members_str)
                 except json.JSONDecodeError:
                     debug_logger.warning(f"Could not parse team members from: {team_members_str}")
+                    # Fallback to current proposed team if parsing fails
                     team_members = action_payload.constraints.get('current_proposed_team', [])
-            if reasoning_line:
-                reasoning = reasoning_line.replace("Reasoning:", "").strip()
+            
             action_data = TeamProposalAction(team_members=team_members, reasoning=reasoning)
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
@@ -619,13 +565,17 @@ class RoleAgent:
             )
             response_str = await get_llm_response(prompt)
             
-            lines = response_str.strip().split('\n')
-            statement_line = next((line for line in lines if line.startswith("Statement:")), None)
-            statement = ""
-            if statement_line:
-                statement = statement_line.replace("Statement:", "").strip()
+            # The entire response is the statement for parsing in the game master
+            statement = response_str
             
-            action_data = MvpNominationAction(statement=statement, reasoning=response_str) # Store full response in reasoning
+            action_data = MvpNominationAction(statement=statement, reasoning=response_str)
+            response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
+
+        elif action_payload.action_type == "MVP_SPEECH":
+            # The prompt is the description itself for this simple action
+            prompt = action_payload.description
+            statement = await get_llm_response(prompt)
+            action_data = DiscussionAction(action_type="statement", statement=statement)
             response_payload = ActionResponsePayload(player_id=self.player_id, action_type=action_payload.action_type, action_data=action_data)
 
         return BaseMessage(

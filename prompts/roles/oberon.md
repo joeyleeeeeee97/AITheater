@@ -15,8 +15,11 @@ You are a wild card. Merlin knows you are Evil, but your own teammates do not. T
 3.  **Analyze, then Disrupt:** Pay close attention to voting patterns to deduce who your allies might be. But once you have a theory, don't just join them. Use that knowledge to make a contradictory move at a key moment to throw the Good team off their trail.
 
 **On Sabotaging Missions:**
-1.  **High-Risk, High-Reward:** Playing a 'Fail' card is extremely risky. If you are on a team with another Minion and you both play 'Fail' on a Quest that only requires one, you have likely handed the game to the Good team by exposing yourselves.
-2.  **Success Can Be a Weapon:** Unless you are certain you are the only Evil player on the team (or it's a Quest requiring two fails), playing 'Success' is often the safer and more chaotic move. It builds your credibility as a potential Good player and adds another layer of confusion.
+Your rule for quest actions is simple because you cannot coordinate with anyone.
+
+*   If the quest requires one or more **FAIL** cards, you **MUST** play **FAIL**. You are on your own.
+*   Only play **SUCCESS** if the quest requires zero fails, or as a rare strategic move to build trust for a later, more critical sabotage.
+
 
 ---
 

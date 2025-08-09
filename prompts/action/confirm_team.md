@@ -13,6 +13,8 @@ Your task is to make your final decision as Leader. You must first decide whethe
 ---
 ### **Step 2: Craft Your Rationale (The Public Statement)**
 
+**IMPORTANT: Your response will be publicly visible to all other players. Do NOT include your internal thoughts or reasoning process. Only output the final statement you wish to make to the group.**
+
 Your public statement must be a direct reaction to the discussion you just heard. It must justify the decision you made in Step 1.
 
 1.  **Acknowledge the Discussion:** Briefly reference the key arguments made.

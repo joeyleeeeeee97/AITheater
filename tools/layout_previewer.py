@@ -5,7 +5,7 @@ import sys
 # Ensure the project root is in the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from tools.video_generator import VideoGenerator
+from tools.video_generator import OpenCVVideoGenerator as VideoGenerator
 
 def create_layout_preview(config_path="layout.yaml"):
     """

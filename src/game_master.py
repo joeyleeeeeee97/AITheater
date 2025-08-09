@@ -68,6 +68,7 @@ class GameMaster:
         self.quest_leader_id = 0
         self.current_team: List[int] = []
         self.team_approved = False
+        self.game_result_message: str = ""
         
         try:
             with open("config.yaml", 'r') as f:
@@ -78,11 +79,16 @@ class GameMaster:
 
         self.game_rules = self._load_prompt_file("prompts/rules.md")
         self.role_contexts = self._load_role_contexts()
-        self.execute_quest_evil_prompt = self._load_prompt_file("prompts/execute_quest_evil.md")
-        self.execute_quest_oberon_prompt = self._load_prompt_file("prompts/execute_quest_oberon.md")
+        self.quest_prompts = {
+            "Assassin": self._load_prompt_file("prompts/action/quest/assassin.md"),
+            "Morgana": self._load_prompt_file("prompts/action/quest/morgana.md"),
+            "Mordred": self._load_prompt_file("prompts/action/quest/mordred.md"),
+            "Oberon": self._load_prompt_file("prompts/action/quest/oberon.md")
+        }
         self.propose_team_prompt = self._load_prompt_file("prompts/action/propose_team.md")
         self.propose_team_evil_prompt = self._load_prompt_file("prompts/action/propose_team_evil.md")
         self.confirm_team_prompt = self._load_prompt_file("prompts/action/confirm_team.md")
+        self.discussion_prompt = self._load_prompt_file("prompts/action/participate_discussion.md")
         
         self._initialize_agents()
 
@@ -121,13 +127,13 @@ class GameMaster:
 
     def _generate_known_info(self, player_id: int, role: str, roles: List[str]) -> str:
         """Generates the known_info string for a player based on their role."""
-        evil_roles = {"Mordred", "Morgana", "Assassin"}
-        if role in evil_roles and role != "Oberon":
-            evil_teammates = [i for i, r in enumerate(roles) if r in evil_roles and i != player_id and r != "Oberon"]
+        # Use the single source of truth for evil roles, loaded from config.yaml
+        if role in self.evil_roles_in_game and role != "Oberon":
+            evil_teammates = [i for i, r in enumerate(roles) if r in self.evil_roles_in_game and i != player_id and r != "Oberon"]
             return f"You are a Minion of Mordred. Your fellow evil teammates are players {evil_teammates}."
         if role == "Merlin":
-            visible_evil_roles = {"Morgana", "Oberon", "Assassin"}
-            visible_evil_players = [i for i, r in enumerate(roles) if r in visible_evil_roles]
+            # Merlin sees all evil roles, except for Mordred.
+            visible_evil_players = [i for i, r in enumerate(roles) if r in self.evil_roles_in_game and r != "Mordred"]
             info_str = f"You see evil in the hearts of players {visible_evil_players}."
             if "Mordred" in roles:
                 info_str += " Be warned, the traitor Mordred is hidden from your sight."
@@ -190,7 +196,7 @@ class GameMaster:
                     vote_details = ", ".join([f"P{pid}({v[0].upper()})" for pid, v in payload['votes'].items()])
                     segment.append(f"[SYSTEM] Team Vote Result: {result_text} (Approve: {payload['approve_votes']}, Reject: {payload['reject_votes']}). Votes: {vote_details}.")
                 elif update_type == "QUEST_RESULT":
-                    segment.append(f"[SYSTEM] Quest {self.quest_num} Result: {payload['result']}. Team was {payload['team']}. Fail cards played: {payload['fail_cards']}.")
+                    segment.append(f"[SYSTEM] Quest {payload['quest_num']} Result: {payload['result']}. Team was {payload['team']}. Fail cards played: {payload['fail_cards']}.")
 
         return "\n".join(segment)
 
@@ -223,13 +229,17 @@ class GameMaster:
 
         # Step 2: Team Discussion
         game_logger.info("\n--- Team Discussion ---")
-        # Create a discussion order starting from the leader and wrapping around.
-        # Every player, including the leader, gets a turn to speak.
-        discussion_order = self.agents[self.quest_leader_id:] + self.agents[:self.quest_leader_id]
+        # The discussion starts with the player after the leader and wraps around, skipping the leader.
+        # This prevents the leader from immediately cementing a potentially hallucinated context.
+        next_player_index = (self.quest_leader_id + 1) % self.num_players
+        discussion_order = self.agents[next_player_index:] + self.agents[:next_player_index]
+        # The leader is the last element in this wrapped list, so remove them from this discussion round.
+        if discussion_order and discussion_order[-1].player_id == self.quest_leader_id:
+            discussion_order.pop()
         
         for agent in discussion_order:
             history_segment = self._get_formatted_history_segment(agent.known_history_index)
-            discussion_req = ActionRequest(action_type="PARTICIPATE_DISCUSSION", description="Discuss the proposed team.", available_options=[], constraints={'team': initial_team}, history_segment=history_segment)
+            discussion_req = ActionRequest(action_type="PARTICIPATE_DISCUSSION", description=self.discussion_prompt, available_options=[], constraints={'team': initial_team}, history_segment=history_segment)
             discussion_msg = BaseMessage(msg_type=MessageType.ACTION_REQUEST, sender_id="GM", recipient_id=f"PLAYER_{agent.player_id}", payload=discussion_req)
             response = await agent.receive_message(discussion_msg)
             
@@ -290,9 +300,6 @@ class GameMaster:
         }
         vote_result_message = BaseMessage(msg_type=MessageType.GAME_UPDATE, sender_id="GM", recipient_id="ALL", payload=vote_result_payload)
         self.game_history.append(vote_result_message)
-        # Update history index for all agents since this is public info
-        for agent in self.agents:
-            agent.known_history_index = len(self.game_history)
 
     async def _run_quest_execution_phase(self):
         """Handles the quest execution by the approved team and records the outcome."""
@@ -314,11 +321,12 @@ class GameMaster:
             else:
                 history_segment = self._get_formatted_history_segment(agent.known_history_index)
                 
+                # Determine the correct prompt for the agent's role
+                description = self.quest_prompts.get(agent.role, "Execute the quest with 'success' or 'fail'.")
+                
                 if agent.role == "Oberon":
-                    description = self.execute_quest_oberon_prompt
                     constraints = {'team': self.current_team, 'fails_needed': fails_needed}
-                else:
-                    description = self.execute_quest_evil_prompt
+                else: # Assassin, Morgana, Mordred
                     constraints = {'team': self.current_team, 'evil_teammates_on_quest': evil_players_on_team, 'fails_needed': fails_needed}
 
                 action_request = ActionRequest(
@@ -333,7 +341,36 @@ class GameMaster:
             quest_responses = await asyncio.gather(*quest_tasks)
             for resp in quest_responses:
                 quest_outcomes.append(resp.payload.action_data.action)
-                debug_logger.debug(f"Evil player {resp.payload.player_id} chose to {resp.payload.action_data.action} the quest.")
+                debug_logger.debug(f"Evil player {resp.payload.player_id} ({self.agents[resp.payload.player_id].role}) chose to {resp.payload.action_data.action} the quest.")
+
+        # --- The Assassin Rule ---
+        # Find the assassin on the team, if they exist.
+        assassin_agent = next((self.agents[p_id] for p_id in self.current_team if self.agents[p_id].role == "Assassin"), None)
+        if assassin_agent and fails_needed > 0:
+            # Find the original action of the assassin
+            assassin_response = next((resp for resp in quest_responses if resp.payload.player_id == assassin_agent.player_id), None)
+            original_action = assassin_response.payload.action_data.action if assassin_response else "N/A"
+            
+            # Find the index of the assassin's action in the outcomes list
+            # This is tricky because we don't know which response belongs to whom after shuffling.
+            # Instead of modifying in place, we'll just ensure at least one fail is counted.
+            # Let's rebuild the outcomes list more carefully.
+            
+            final_outcomes = []
+            evil_responses = {resp.payload.player_id: resp.payload.action_data.action for resp in quest_responses} if quest_tasks else {}
+
+            for p_id in self.current_team:
+                agent = self.agents[p_id]
+                if agent.role == "Assassin" and fails_needed > 0:
+                    original_action = evil_responses.get(p_id, "N/A")
+                    final_outcomes.append('fail') # Force the fail
+                    debug_logger.info(f"ASSASSIN RULE TRIGGERED: Player {p_id} (Assassin) originally chose '{original_action}', but was forced to FAIL.")
+                elif p_id in evil_responses:
+                    final_outcomes.append(evil_responses[p_id])
+                elif agent.role not in self.evil_roles_in_game:
+                    final_outcomes.append('success')
+            
+            quest_outcomes = final_outcomes # Replace original outcomes with the corrected list
 
         random.shuffle(quest_outcomes)
         fail_cards = quest_outcomes.count('fail')
@@ -359,20 +396,33 @@ class GameMaster:
         }
         quest_result_message = BaseMessage(msg_type=MessageType.GAME_UPDATE, sender_id="GM", recipient_id="ALL", payload=quest_result_payload)
         self.game_history.append(quest_result_message)
-        # Update history index for all agents
-        for agent in self.agents:
-            agent.known_history_index = len(self.game_history)
 
     async def run_game(self):
         game_logger.info("--- Game Start ---")
         await self._start_game()
-        while self.quest_num < 5 and not self._check_game_end_condition():
+
+        # Game loop starts
+        while self.quest_num < 5:
             self.quest_num += 1
             game_logger.info(f"\n--- Starting Quest {self.quest_num} ---")
-            await self._run_team_building_phase()
-            await self._run_quest_execution_phase()
-            if self.team_approved:
-                self.quest_leader_id = (self.quest_leader_id + 1) % self.num_players
+
+            # Run the team building phase to get an approved team
+            team_was_approved = await self._run_team_building_phase()
+
+            # If a team was approved, run the quest
+            if team_was_approved:
+                await self._run_quest_execution_phase()
+            else:
+                # This case should ideally not be reached if team building is forced
+                game_logger.warning(f"Quest {self.quest_num} did not run as no team was approved.")
+
+            # Check for game end condition after the quest is completed
+            if self._check_game_end_condition():
+                break
+
+            # Move to the next leader for the next quest
+            self.quest_leader_id = (self.quest_leader_id + 1) % self.num_players
+
         await self._finalize_game()
         await self._run_mvp_phase()
 
@@ -415,31 +465,89 @@ class GameMaster:
         """Announces the primary game result before moving to the MVP phase."""
         game_logger.info("\n--- Game Over ---")
         if self.good_quests_succeeded >= 3:
+            # Good wins, but assassination phase can overturn it
             await self._run_assassination_phase()
         elif self.evil_quests_failed >= 3:
-            game_logger.info("Three quests have failed. Evil wins the game!")
+            self.game_result_message = "Three quests have failed. Evil wins the game!"
+            game_logger.info(self.game_result_message)
         else:
-            game_logger.info("The game has concluded without a clear win condition being met.")
+            self.game_result_message = "The game has concluded without a clear win condition being met."
+            game_logger.info(self.game_result_message)
 
     async def _run_mvp_phase(self):
-        """Runs the post-game MVP selection phase."""
+        """Runs the post-game MVP selection, voting, and speech phase."""
         game_logger.info("\n--- MVP Selection Phase ---")
         game_logger.info("The roles for this game were:")
         for agent in self.agents:
             game_logger.info(f"Player {agent.player_id}: {agent.role}")
-        game_logger.info("\n--- MVP Statements ---")
+        
+        game_logger.info("\n--- MVP Nominations ---")
+        
+        nomination_tasks = []
         for agent in self.agents:
-            action_request = ActionRequest(action_type="NOMINATE_MVP", description="State who you think was the MVP and why.", available_options=[str(p.player_id) for p in self.agents], constraints={})
+            # Ask for nomination and reasoning in one go.
+            description = "The game is over. Please nominate a player for MVP. Your nomination must be in the format 'I nominate Player X' followed by your reasoning."
+            action_request = ActionRequest(
+                action_type="NOMINATE_MVP", 
+                description=description, 
+                available_options=[str(p.player_id) for p in self.agents], 
+                constraints={}
+            )
             request_message = BaseMessage(msg_type=MessageType.ACTION_REQUEST, sender_id="GM", recipient_id=f"PLAYER_{agent.player_id}", payload=action_request)
-            response = await agent.receive_message(request_message)
-            game_logger.info(f"Player {agent.player_id} ({agent.role}) says: {response.payload.action_data.statement}")
+            nomination_tasks.append(agent.receive_message(request_message))
+            
+        nomination_responses = await asyncio.gather(*nomination_tasks)
+
+        import re
+        from collections import Counter
+
+        votes = []
+        for resp in nomination_responses:
+            statement = resp.payload.action_data.statement
+            game_logger.info(f"Player {resp.payload.player_id} ({self.agents[resp.payload.player_id].role}) says: {statement}")
+            # Extract the first player ID mentioned in the nomination statement
+            match = re.search(r'Player (\d+)', statement)
+            if match:
+                voted_for_id = int(match.group(1))
+                if 0 <= voted_for_id < self.num_players:
+                    votes.append(voted_for_id)
+                    debug_logger.debug(f"Player {resp.payload.player_id} voted for Player {voted_for_id}")
+
+        if not votes:
+            game_logger.info("\nNo valid MVP nominations were cast.")
+            return
+
+        # --- Announce MVP ---
+        vote_counts = Counter(votes)
+        mvp_id, mvp_votes = vote_counts.most_common(1)[0]
+        
+        # Handle ties by randomly selecting from the top-voted players
+        top_voted_players = [p_id for p_id, count in vote_counts.items() if count == mvp_votes]
+        if len(top_voted_players) > 1:
+            game_logger.info(f"\nThere is a tie for MVP between players {top_voted_players} with {mvp_votes} votes each.")
+            mvp_id = random.choice(top_voted_players)
+            game_logger.info(f"Player {mvp_id} has been randomly selected as the winner.")
+        
+        mvp_agent = self.agents[mvp_id]
+        game_logger.info(f"\n--- MVP Announcement ---")
+        game_logger.info(f"Player {mvp_id} ({mvp_agent.role}) has been elected as the MVP with {mvp_votes} votes!")
+
+        # --- MVP Speech ---
+        game_logger.info(f"\n--- MVP Speech ---")
+        speech_prompt = f"You have been elected as the MVP of the game! The final result was: '{self.game_result_message}'. Please give your victory/defeat speech."
+        action_request = ActionRequest(action_type="MVP_SPEECH", description=speech_prompt, available_options=[], constraints={})
+        request_message = BaseMessage(msg_type=MessageType.ACTION_REQUEST, sender_id="GM", recipient_id=f"PLAYER_{mvp_id}", payload=action_request)
+        response = await mvp_agent.receive_message(request_message)
+        
+        game_logger.info(f"MVP Player {mvp_id} ({mvp_agent.role}) says: {response.payload.action_data.statement}")
 
     async def _run_assassination_phase(self):
         debug_logger.debug("--- Assassination Phase ---")
         assassin_agent = next((agent for agent in self.agents if agent.role == "Assassin"), None)
         merlin_agent = next((agent for agent in self.agents if agent.role == "Merlin"), None)
         if not merlin_agent or not assassin_agent:
-            game_logger.info("Required role (Merlin/Assassin) not found. Good wins by default.")
+            self.game_result_message = "Required role (Merlin/Assassin) not found. Good wins by default."
+            game_logger.info(self.game_result_message)
             return
         game_logger.info(f"\n--- The Final Assassination ---")
         game_logger.info(f"The Assassin (Player {assassin_agent.player_id}) will now make the final decision.")
@@ -451,9 +559,11 @@ class GameMaster:
         final_target_id = response.payload.action_data.target_player
         game_logger.info(f"The Assassin has targeted Player {final_target_id}.")
         if final_target_id == merlin_agent.player_id:
-            game_logger.info("\nThe Assassin successfully assassinated Merlin! Evil wins!")
+            self.game_result_message = "\nThe Assassin successfully assassinated Merlin! Evil wins!"
+            game_logger.info(self.game_result_message)
         else:
-            game_logger.info(f"\nThe Assassin failed to assassinate Merlin (who was Player {merlin_agent.player_id}). Good wins!")
+            self.game_result_message = f"\nThe Assassin failed to assassinate Merlin (who was Player {merlin_agent.player_id}). Good wins!"
+            game_logger.info(self.game_result_message)
 
 if __name__ == "__main__":
     gm = GameMaster()

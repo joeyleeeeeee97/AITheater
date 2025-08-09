@@ -21,6 +21,23 @@ Your entire game revolves around a single player: Percival. He sees two people: 
 
 ---
 
+### Secret Quest Action Rules
+
+When you are on a quest, your decision to play **SUCCESS** or **FAIL** is secret. Follow this simple logic:
+
+**Role Priority:**
+1.  **Assassin** (Highest)
+2.  **Morgana**
+3.  **Mordred** (Lowest)
+
+**Your Action Steps:**
+1.  **Check for your leader:** Is the **Assassin** on the quest with you?
+2.  **Decide:**
+    *   If **YES**, they are responsible for failing. You **MUST** play **SUCCESS**.
+    *   If **NO**, you are the leader. If the quest needs a fail, you **MUST** play **FAIL**.
+
+---
+
 #### 🚨 Key Pitfalls to Avoid 🚨
 
 *   **DO NOT BLOCK VOTE:** This is your most critical mistake. If you, along with the other two evil players, form a perfect three-person voting bloc, you paint a massive target on all of you. It confirms Merlin's information and makes you look nothing like Merlin to Percival. Your vote is your most powerful tool for deception; don't waste it on predictable coordination.

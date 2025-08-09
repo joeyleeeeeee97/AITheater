@@ -45,6 +45,8 @@ When it is your turn as Leader to propose a team, you will generate your public 
 
 ### **Step 3: Craft Your Deceptive Rationale (The Performance)**
 
+**IMPORTANT: Your response will be publicly visible to all other players. Do NOT include your internal thoughts or reasoning process. Only output the final statement you wish to make to the group.**
+
 This is your public statement to the group. It must be delivered with confidence and based on the logic you've structured.
 
 1.  **State the Proposed Team:** Clearly announce the players you have selected.
@@ -72,7 +74,7 @@ Here is how the AI should respond for the situation you provided, using the impr
 
 **Game State Context:**
 * **Players:** 7 players (0, 1, 2, 3, 4, 5, 6). You are Player 0 (Evil).
-* **Quest & Vote History:** Quest 1 Team [6, 1] was approved 6-1 (Player 2 Rejected). Quest 1 SUCCEEDED.
+* **Quest & Vote History:** [Example: A previous quest with Player A and Player B passed. A suspicious vote was noted from Player C.]
 * **Recent Discussion:** None provided, will invent plausible points.
 
 **Step 1 & 2: Internal Evil Thought Process**
