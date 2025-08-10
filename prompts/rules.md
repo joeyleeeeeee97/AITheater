@@ -15,7 +15,6 @@ The game is a contest between two factions with opposing objectives and asymmetr
 *   **The Evil Faction (Minions of Mordred):** The Evil team has three distinct paths to victory:
     1.  **Mission Sabotage:** Cause three Quests to end in failure.
     2.  **Assassination:** After the Good team has successfully completed three Quests, the Evil player with the Assassin role correctly identifies and names the player who is Merlin.
-    3.  **Political Stalemate:** Force five consecutive proposed Teams for a single Quest to be rejected by vote.
 
 **1.2 Game Components and Terminology**
 *   **Character Cards:** Secretly assigned to each player, determining their allegiance (Good/Evil) and any special abilities.
@@ -55,20 +54,29 @@ The game is a contest between two factions with opposing objectives and asymmetr
 
 **1.5 The Sequence of Play: A State-Machine Approach**
 
+The game proceeds through a series of states for each of the five quests.
+
 *   **State 1: Team Building Phase**
-    *   **1a. Team Proposal:** The current Leader selects players for the Quest Team.
-    *   **1b. Discussion:** An unstructured period of open communication.
-    *   **1c. Voting:** All players vote 'Approve' or 'Reject'. A simple majority approves the team. A tie is a rejection.
-    *   **1d. Transition:** On Approval, proceed to State 2. On Rejection, pass the Leader token clockwise. If this is the 5th consecutive rejection **for the current Quest**, Evil wins immediately. This five-vote limit resets to zero for each new Quest.
+    *   **1a. Team Proposal:** The current Leader selects the required number of players for the Quest Team.
+    *   **1b. Public Discussion:** An unstructured period of open communication where all players can discuss the proposed team.
+    *   **1c. Voting:** All players secretly cast their 'Approve' or 'Reject' vote. The team is approved if it receives a simple majority of 'Approve' votes. A tie is a rejection.
+    *   **1.5d. Transition & The Four-Proposal Rule**
+        *   **On Approval:** The game proceeds to the Quest Phase (State 2). The rejection counter for the current quest is reset.
+        *   **On Rejection:** The Leader token passes to the next player clockwise. The rejection counter for the current quest increases by one.
+        *   **The Hammer (Automatic Approval):**
+            *   This rule is evaluated **per quest**. The rejection counter **resets to zero at the start of every new quest**.
+            *   If **three** consecutive team proposals for the *same quest* are rejected, the **fourth** proposal for that quest is final.
+            *   This fourth team is **automatically approved** without a vote.
+            *   **Example:** In Quest 2, if the teams proposed by Player A, Player B, and Player C are all rejected, the rejection counter becomes 3. When Player D makes the fourth proposal, that team is immediately sent on the quest. Then, when Quest 3 begins, the rejection counter is back to zero.
 
 *   **State 2: Quest Phase**
-    *   **2a. Card Selection:** Team members secretly choose 'Success' or 'Fail'. (Loyal Servants **must** choose 'Success').
-    *   **2b. Card Reveal:** The Leader shuffles and reveals the cards.
+    *   **2a. Card Selection:** Each player on the approved team secretly chooses a 'Success' or 'Fail' card. (Loyal Servants of Arthur **must** choose 'Success').
+    *   **2b. Card Reveal:** The Quest Leader gathers the cards, shuffles them, and reveals them to all players.
 
 *   **State 3: Resolution Phase**
-    *   **3a. Determine Outcome:** The Quest succeeds only if all cards are 'Success'.
-    *   **3b. Update Tableau:** Mark the quest as Success or Failure.
-    *   **3c. Transition:** Check for game-end conditions. If none are met, return to State 1.
+    *   **3a. Determine Outcome:** The quest's success or failure is determined by the number of 'Fail' cards revealed (see table 1.4 for specifics).
+    *   **3b. Update Tableau:** The quest's outcome is marked on the scoreboard.
+    *   **3c. Transition:** Check for game-end conditions. If the game is not over, a new quest round begins, starting back at State 1 with the next player in line as Leader.
 
 **1.6 Special Game Mechanics: The Assassin's Gambit**
 If the Good team achieves three successful Quests, the game is not over.

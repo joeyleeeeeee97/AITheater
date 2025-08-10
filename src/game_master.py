@@ -442,10 +442,22 @@ class GameMaster:
         while not team_approved_for_quest:
             game_logger.info(f"\n--- Team Building Attempt #{self.consecutive_rejections + 1} (Leader: Player {self.quest_leader_id}) ---")
 
-            # On the 6th attempt (after 5 rejections), the team is automatically approved.
-            if self.consecutive_rejections >= 5:
-                game_logger.info("This is the sixth and final team proposal. It will be automatically approved.")
-                await self._run_discussion_and_proposal_phase()
+            # On the 4th attempt (after 3 rejections), the team is automatically approved.
+            if self.consecutive_rejections >= 3:
+                game_logger.info("This is the fourth and final team proposal. It will be automatically approved due to 3 prior rejections.")
+                await self._run_discussion_and_proposal_phase() # Propose the final team
+                
+                # Add a specific event to game history for the hammer rule
+                hammer_payload = {
+                    "update_type": "HAMMER_RULE",
+                    "team": self.current_team,
+                    "leader": self.quest_leader_id,
+                    "result": "Automatically Approved",
+                    "reason": "Team was automatically approved after 3 consecutive rejections."
+                }
+                hammer_message = BaseMessage(msg_type=MessageType.GAME_UPDATE, sender_id="GM", recipient_id="ALL", payload=hammer_payload)
+                self.game_history.append(hammer_message)
+                
                 self.team_approved = True
                 team_approved_for_quest = True
             else:
@@ -453,7 +465,7 @@ class GameMaster:
                 await self._run_voting_phase()
                 if self.team_approved:
                     team_approved_for_quest = True
-                    self.consecutive_rejections = 0
+                    self.consecutive_rejections = 0 # Reset on approval
                 else:
                     self.consecutive_rejections += 1
                     game_logger.info(f"Team rejected. Consecutive rejections: {self.consecutive_rejections}. Passing leadership.")

@@ -1,0 +1,57 @@
+# This configuration file assigns a specific LLM to each player agent.
+# The GameMaster will read this file on startup.
+
+player_setup:
+  - player_id: 0
+    model: "gemini/gemini-2.5-pro"
+  - player_id: 1
+    model: "gemini/gemini-2.5-pro"
+  - player_id: 2
+    model: "gemini/gemini-2.5-pro"
+  - player_id: 3
+    model: "gemini/gemini-2.5-pro"
+  - player_id: 4
+    model: "gemini/gemini-2.5-pro"
+  - player_id: 5
+    model: "gemini/gemini-2.5-pro"
+  - player_id: 6
+    model: "gemini/gemini-2.5-pro"
+
+# Role and game structure configuration for different game sizes
+roles:
+  5:
+    num_good: 3
+    num_evil: 2
+    roles: ["Merlin", "Percival", "Loyal Servant", "Morgana", "Assassin"]
+    evil_roles: ["Morgana", "Assassin"]
+    team_sizes: [2, 3, 2, 3, 3]
+  6:
+    num_good: 4
+    num_evil: 2
+    roles: ["Merlin", "Percival", "Loyal Servant", "Loyal Servant", "Morgana", "Assassin"]
+    evil_roles: ["Morgana", "Assassin"]
+    team_sizes: [2, 3, 4, 3, 4]
+  7:
+    num_good: 4
+    num_evil: 3
+    roles: ["Merlin", "Percival", "Loyal Servant", "Loyal Servant", "Morgana", "Oberon", "Assassin"]
+    evil_roles: ["Morgana", "Oberon", "Assassin"]
+    team_sizes: [2, 3, 3, 4, 4] # Note: 4th quest requires 2 fails
+  8:
+    num_good: 5
+    num_evil: 3
+    roles: ["Merlin", "Percival", "Loyal Servant", "Loyal Servant", "Loyal Servant", "Morgana", "Assassin"]
+    evil_roles: ["Morgana", "Assassin"]
+    team_sizes: [3, 4, 4, 5, 5] # Note: 4th quest requires 2 fails
+  9:
+    num_good: 6
+    num_evil: 3
+    roles: ["Merlin", "Percival", "Loyal Servant", "Loyal Servant", "Loyal Servant", "Loyal Servant", "Mordred", "Morgana", "Assassin"]
+    evil_roles: ["Mordred", "Morgana", "Assassin"]
+    team_sizes: [3, 4, 4, 5, 5] # Note: 4th quest requires 2 fails
+  10:
+    num_good: 6
+    num_evil: 4
+    roles: ["Merlin", "Percival", "Loyal Servant", "Loyal Servant", "Loyal Servant", "Loyal Servant", "Mordred", "Morgana", "Oberon", "Assassin"]
+    evil_roles: ["Mordred", "Morgana", "Oberon", "Assassin"]
+    team_sizes: [3, 4, 4, 5, 5] # Note: 4th quest requires 2 fails

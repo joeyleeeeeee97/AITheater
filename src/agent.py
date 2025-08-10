@@ -207,7 +207,7 @@ ACTION: CONFIRM_TEAM
 Your Player ID is {player_id}. You are the leader. You have listened to the discussion from the other players.
 Your currently proposed team is {current_team}.
 
-Review the discussion in the history below. Based on what you've heard, you must now make your final decision.
+Review the discussion in the history below. Based on what you'veheard, you must now make your final decision.
 - You can **keep** your original team if the discussion was positive or you are confident in your choices.
 - You can **change** your team if the discussion has raised valid concerns.
 
@@ -299,11 +299,6 @@ Format your response as:
 Statement: [Your nomination statement and detailed reasoning.]
 """
 
-# --- RoleAgent Implementation ---
-
-class RoleAgent:
-    """An LLM-driven Avalon Agent that adheres to the protocol."""
-
     def get_assassination_discussion_prompt(self, player_id: int, role: str, proposal_target: int, proposal_reasoning: str, history_segment: str) -> str:
         return self.cothought_prompt + f"""
 ACTION: ASSASSINATE_DISCUSSION
@@ -317,7 +312,6 @@ Format your response as:
 Statement: [Your analysis and recommendation]
 Reasoning: [Your thought process]
 """
-
 
     def get_assassination_final_decision_prompt(self, player_id: int, role: str, available_targets: List[int], history_segment: str) -> str:
         return self.cothought_prompt + f"""
@@ -338,6 +332,7 @@ Reasoning: Your final, detailed explanation for your choice, taking into account
 class RoleAgent:
     """An LLM-driven Avalon Agent that adheres to the protocol."""
 
+
     def __init__(self, player_id: int, model_name: str = "gpt-4-turbo"):
         self.logger = logging.getLogger("debug")
         self.player_id = player_id
@@ -357,7 +352,7 @@ class RoleAgent:
             self._handle_game_start(message.payload)
         elif message.msg_type == MessageType.ACTION_REQUEST:
             response = await self._handle_action_request(message)
-            self.logger.debug(f"[Agent {self.player_id} ({self.role})] Sent: {{'msg_type': '{response.msg_type.value}', 'sender_id': '{response.sender_id}', 'recipient_id': '{response.recipient_id}', 'msg_id': '{response.msg_id}', 'correlation_id': '{response.correlation_id}', 'payload': {json.dumps(response.payload, default=lambda o: o.__dict__, indent=2)}}})")
+            self.logger.debug(f"[Agent {self.player_id} ({self.role})] Sent: {{'msg_type': '{response.msg_type.value}', 'sender_id': '{response.sender_id}', 'recipient_id': '{response.recipient_id}', 'msg_id': '{message.msg_id}', 'correlation_id': '{response.correlation_id}', 'payload': {json.dumps(response.payload, default=lambda o: o.__dict__, indent=2)}}})")
             return response
 
     def _handle_game_start(self, payload: GameStartPayload):

@@ -7,21 +7,40 @@ from dotenv import load_dotenv
 from google.cloud import texttospeech
 from mutagen.mp3 import MP3
 import yaml
+from pydub import AudioSegment
+import io
 
 # --- Initial Setup ---
-# Load environment variables from .env file
 load_dotenv()
-
-# Set Google Cloud credentials from the path in .env
 gcp_path = os.getenv("GCP_CREDENTIALS_PATH")
 if gcp_path and os.path.exists(gcp_path):
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = gcp_path
 else:
-    print(f"Warning: GCP credentials path not found at '{gcp_path}'. TTS generation will likely fail.")
+    print(f"Warning: GCP credentials path not found at '{gcp_path}'.")
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def split_text_by_bytes(text: str, limit: int = 4500) -> list[str]:
+    """
+    Splits text into chunks that are under the byte limit, splitting at the nearest space.
+    """
+    if text.encode('utf-8').__len__() <= limit:
+        return [text]
+
+    chunks = []
+    while text.encode('utf-8').__len__() > limit:
+        # Find a split point near the limit
+        split_at = limit
+        # Find the last space before the limit
+        last_space = text.rfind(' ', 0, split_at)
+        if last_space != -1:
+            split_at = last_space
+        
+        chunks.append(text[:split_at])
+        text = text[split_at:].lstrip()
+    chunks.append(text)
+    return chunks
 
 class AudioGenerator:
     def __init__(self, config_path="data/layout.yaml"):
@@ -30,37 +49,42 @@ class AudioGenerator:
             self.config = yaml.safe_load(f)
         self.voice_mapping = self.config.get("voice_mapping", {})
         if not self.voice_mapping:
-            logging.error("Voice mapping not found in config file. Aborting.")
             raise ValueError("Voice mapping is missing from the layout configuration.")
 
+    async def _generate_single_audio_chunk(self, text_chunk: str, voice_params: dict, audio_config: dict, client: texttospeech.TextToSpeechAsyncClient) -> bytes:
+        """Generates audio for a small text chunk."""
+        synthesis_input = texttospeech.SynthesisInput(text=text_chunk)
+        request = texttospeech.SynthesizeSpeechRequest(
+            input=synthesis_input,
+            voice=voice_params,
+            audio_config=audio_config
+        )
+        response = await client.synthesize_speech(request=request)
+        return response.audio_content
+
     async def generate_audio_for_event(self, event: dict, index: int, client: texttospeech.TextToSpeechAsyncClient, output_dir: str) -> dict:
-        """Generates a single audio file for any event with content."""
+        """Generates a single audio file for an event, handling long text by splitting it."""
         event_type = event.get("event_type")
         text_content = event.get("content")
 
         if not text_content:
-            logging.warning(f"Skipping event {index} ({event_type}) due to missing content.")
             return None
 
-        # Clean the text by removing performance notes
-        clean_text = re.sub(r'\(.*?\)', '', text_content).strip()
+        clean_text = re.sub(r'\(.*\)', '', text_content).strip()
         if not clean_text:
-            logging.info(f"Skipping event {index} as it contains only performance notes or is empty.")
             return None
 
-        # Determine the voice to use based on the event type
-        player_id_events = ["PLAYER_SPEECH", "TEAM_PROPOSAL", "CONFIRM_TEAM", "MVP_SPEECH"]
+        player_id_events = ["PLAYER_SPEECH", "TEAM_PROPOSAL", "CONFIRM_TEAM", "MVP_SPEECH", "player_speech", "team_proposal", "mvp_vote"]
         
+        player_id = event.get("player_id")
         if event_type in player_id_events:
-            player_id = event.get("player_id")
             if player_id is None:
                 logging.warning(f"Skipping {event_type} event {index} due to missing player_id.")
                 return None
-            # YAML keys are strings, so we convert player_id
             voice_name = self.voice_mapping.get(str(player_id), "en-US-Standard-A")
             logging_name = f"Player {player_id}"
         else:
-            player_id = "NARRATOR" # For metadata purposes
+            player_id = "NARRATOR"
             voice_name = self.voice_mapping.get("NARRATOR", "en-US-Standard-A")
             logging_name = "Narrator"
 
@@ -69,32 +93,31 @@ class AudioGenerator:
 
         logging.info(f"Generating audio for event {index} ({logging_name}) -> {output_filename}")
 
-        synthesis_input = texttospeech.SynthesisInput(text=clean_text)
-        voice = texttospeech.VoiceSelectionParams(language_code=voice_name.split('-')[0] + '-' + voice_name.split('-')[1], name=voice_name)
+        voice_params = texttospeech.VoiceSelectionParams(language_code=voice_name.split('-')[0] + '-' + voice_name.split('-')[1], name=voice_name)
         audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
 
         try:
-            request = texttospeech.SynthesizeSpeechRequest(
-                input=synthesis_input,
-                voice=voice,
-                audio_config=audio_config
-            )
-            response = await client.synthesize_speech(request=request)
+            text_chunks = split_text_by_bytes(clean_text)
+            
+            combined_audio = AudioSegment.empty()
+            
+            audio_tasks = [self._generate_single_audio_chunk(chunk, voice_params, audio_config, client) for chunk in text_chunks if chunk]
+            audio_contents = await asyncio.gather(*audio_tasks)
+            
+            for content in audio_contents:
+                combined_audio += AudioSegment.from_file(io.BytesIO(content), format="mp3")
 
-            with open(output_filepath, "wb") as out:
-                out.write(response.audio_content)
+            combined_audio.export(output_filepath, format="mp3")
 
-            # Get audio duration
             audio = MP3(output_filepath)
             duration_ms = int(audio.info.length * 1000)
 
-            # Return metadata without word timings
             return {
                 "event_index": index,
                 "player_id": player_id,
                 "file_path": output_filepath,
                 "duration_ms": duration_ms,
-                "text": clean_text # Include the spoken text for subtitle generation
+                "text": clean_text
             }
         except Exception as e:
             logging.error(f"Failed to generate audio for event {index}. Error: {e}")
@@ -124,7 +147,6 @@ class AudioGenerator:
         
         results = await asyncio.gather(*tasks)
         
-        # Filter out None results from non-speech events or failures
         audio_metadata = [res for res in results if res is not None]
         
         with open(metadata_file, 'w', encoding='utf-8') as f:
@@ -138,30 +160,18 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Generate audio files from a JSON script.")
-    parser.add_argument("script_file", help="Path to the input JSON script file (inside outputs/ dir).", nargs='?')
-    parser.add_argument("output_dir", help="Directory to save the generated audio files (inside outputs/ dir).", default="generated_audio", nargs='?')
-    parser.add_argument("metadata_file", help="Path for the output audio metadata JSON file (inside outputs/ dir).", nargs='?')
+    parser.add_argument("script_file", help="Path to the input JSON script file.")
+    parser.add_argument("output_dir", help="Directory to save the generated audio files.", default="generated_audio")
+    parser.add_argument("metadata_file", help="Path for the output audio metadata JSON file.")
     args = parser.parse_args()
 
-    output_dir_name = args.output_dir
-    
-    # Handle absolute vs. relative paths, and avoid double-prefixing
-    script_path = args.script_file if os.path.isabs(args.script_file) else os.path.join("outputs", args.script_file)
-    if script_path.startswith("outputs/outputs/"):
-        script_path = script_path.replace("outputs/outputs/", "outputs/", 1)
-
-    output_path = args.output_dir if os.path.isabs(args.output_dir) else os.path.join("outputs", args.output_dir)
-    if output_path.startswith("outputs/outputs/"):
-        output_path = output_path.replace("outputs/outputs/", "outputs/", 1)
-
-    metadata_path = args.metadata_file if os.path.isabs(args.metadata_file) else os.path.join("outputs", args.metadata_file)
-    if metadata_path.startswith("outputs/outputs/"):
-        metadata_path = metadata_path.replace("outputs/outputs/", "outputs/", 1)
-
-    # Ensure the user has set up Google Cloud credentials
     if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
         print("\nERROR: GOOGLE_APPLICATION_CREDENTIALS environment variable is not set.")
-        print("Please follow the setup instructions in the design document.")
     else:
-        audio_gen = AudioGenerator()
-        asyncio.run(audio_gen.generate_all_audio(script_path, output_path, metadata_path))
+        try:
+            import pydub
+        except ImportError:
+            print("pydub is not installed. Please run: pip install pydub")
+        else:
+            audio_gen = AudioGenerator()
+            asyncio.run(audio_gen.generate_all_audio(args.script_file, args.output_dir, args.metadata_file))
